@@ -1875,6 +1875,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
         
         function renderSingleProblem(problems, index) {
             const container = document.getElementById('previewContainer');
+            if (!problems[index]) {
+                container.innerHTML = '<div class="preview-empty"><div>Problem not found</div></div>';
+                return;
+            }
             container.innerHTML = renderProblemHTML(problems[index], index);
             attachEditListeners();
         }
@@ -1905,10 +1909,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 `;
             } else {
                 const indicatorClass = problem.isMultipleChoice ? '' : 'checkbox';
+                const choices = problem.choices || [];
+                const correctIndices = problem.correctIndices || [];
                 choicesHTML = `
                     <ul class="preview-choices">
-                        ${problem.choices.map((choice, i) => `
-                            <li class="preview-choice ${problem.correctIndices.includes(i) ? 'correct' : ''}">
+                        ${choices.map((choice, i) => `
+                            <li class="preview-choice ${correctIndices.includes(i) ? 'correct' : ''}">
                                 <div class="preview-choice-indicator ${indicatorClass}"></div>
                                 <span class="preview-choice-text editable" contenteditable="true" data-problem="${index}" data-field="choice" data-choice="${i}">${escapeHtmlWithFormatting(choice)}</span>
                             </li>
@@ -1920,14 +1926,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
             return `
                 <div class="preview-problem" data-index="${index}">
                     <div class="preview-problem-header">
-                        <span class="preview-problem-title">${escapeHtmlWithFormatting(problem.title)}</span>
+                        <span class="preview-problem-title">${escapeHtmlWithFormatting(problem.title || '')}</span>
                         <span class="preview-problem-type ${typeClass}">${typeName}</span>
                     </div>
-                    <div class="preview-question editable" contenteditable="true" data-problem="${index}" data-field="question">${escapeHtmlWithFormatting(problem.question)}</div>
+                    <div class="preview-question editable" contenteditable="true" data-problem="${index}" data-field="question">${escapeHtmlWithFormatting(problem.question || '')}</div>
                     ${choicesHTML}
                     <div class="preview-explanation">
                         <div class="preview-explanation-label">Explanation</div>
-                        <div class="preview-explanation-text editable" contenteditable="true" data-problem="${index}" data-field="explanation">${escapeHtmlWithFormatting(problem.explanation)}</div>
+                        <div class="preview-explanation-text editable" contenteditable="true" data-problem="${index}" data-field="explanation">${escapeHtmlWithFormatting(problem.explanation || '')}</div>
                     </div>
                 </div>
             `;
@@ -1947,17 +1953,20 @@ Explanation: Sales by category represents distinct groups."></textarea>
             const problemIndex = parseInt(el.dataset.problem, 10);
             const field = el.dataset.field;
             const choiceIndex = el.dataset.choice !== undefined ? parseInt(el.dataset.choice, 10) : null;
-            
-            if (!currentProblems[problemIndex]) return;
-            
+
+            if (isNaN(problemIndex) || !currentProblems[problemIndex]) return;
+            if (choiceIndex !== null && isNaN(choiceIndex)) return;
+
             const content = el.innerHTML;
-            
+
             if (field === 'question') {
                 currentProblems[problemIndex].question = content;
             } else if (field === 'explanation') {
                 currentProblems[problemIndex].explanation = content;
             } else if (field === 'choice' && choiceIndex !== null) {
-                currentProblems[problemIndex].choices[choiceIndex] = content;
+                if (currentProblems[problemIndex].choices && currentProblems[problemIndex].choices[choiceIndex] !== undefined) {
+                    currentProblems[problemIndex].choices[choiceIndex] = content;
+                }
             } else if (field === 'answer') {
                 currentProblems[problemIndex].answer = content;
             }
