@@ -1190,6 +1190,63 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&apos;');
         }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function escapeHtmlWithFormatting(text) {
+            if (!text) return '';
+
+            // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre
+            const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre'];
+            let result = text;
+            const tagPlaceholders = {};
+            let placeholderIndex = 0;
+
+            // Protect anchor tags with href
+            const anchorRegex = /<a\s+href="([^"]+)"(?:\s+target="([^"]+)")?(?:\s+rel="([^"]+)")?[^>]*>(.*?)<\/a>/gi;
+            result = result.replace(anchorRegex, (match, href, target, rel, content) => {
+                const placeholder = `__ANCHOR_${placeholderIndex}__`;
+                const escapedHref = escapeHtml(href);
+                const escapedContent = escapeHtml(content);
+                let tag = `<a href="${escapedHref}"`;
+                if (target) {
+                    tag += ` target="${escapeHtml(target)}"`;
+                }
+                if (rel) {
+                    tag += ` rel="${escapeHtml(rel)}"`;
+                }
+                tag += `>${escapedContent}</a>`;
+                tagPlaceholders[placeholder] = tag;
+                placeholderIndex++;
+                return placeholder;
+            });
+
+            // Protect other allowed tags
+            allowedTags.forEach(tag => {
+                if (tag === 'a') return; // Already handled
+                const tagRegex = new RegExp(`<${tag}>(.*?)<\/${tag}>`, 'gi');
+                result = result.replace(tagRegex, (match, content) => {
+                    const placeholder = `__TAG_${placeholderIndex}__`;
+                    tagPlaceholders[placeholder] = `<${tag}>${content}</${tag}>`;
+                    placeholderIndex++;
+                    return placeholder;
+                });
+            });
+
+            // Escape everything else
+            result = escapeHtml(result);
+
+            // Restore protected tags
+            Object.keys(tagPlaceholders).forEach(placeholder => {
+                result = result.replace(placeholder, tagPlaceholders[placeholder]);
+            });
+
+            return result;
+        }
         
         function escapeXmlWithFormatting(text) {
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre'];
@@ -1821,7 +1878,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function renderProblemHTML(problem, index) {
             let typeClass = 'multiple-choice';
             let typeName = 'Single Choice';
-            
+
             if (problem.answerType === 'numerical') {
                 typeClass = 'numerical';
                 typeName = 'Numerical';
@@ -1832,14 +1889,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 typeClass = 'checkbox';
                 typeName = 'Multi-Select';
             }
-            
+
             let choicesHTML = '';
-            
+
             if (problem.answerType === 'numerical' || problem.answerType === 'text') {
                 choicesHTML = `
                     <div class="preview-input-field">Enter your answer...</div>
-                    <div class="preview-answer-hint">✓ Correct answer: 
-                        <span class="editable" contenteditable="true" data-problem="${index}" data-field="answer">${problem.answer}</span>
+                    <div class="preview-answer-hint">✓ Correct answer:
+                        <span class="editable" contenteditable="true" data-problem="${index}" data-field="answer">${escapeHtmlWithFormatting(problem.answer || '')}</span>
                     </div>
                 `;
             } else {
@@ -1849,24 +1906,24 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         ${problem.choices.map((choice, i) => `
                             <li class="preview-choice ${problem.correctIndices.includes(i) ? 'correct' : ''}">
                                 <div class="preview-choice-indicator ${indicatorClass}"></div>
-                                <span class="preview-choice-text editable" contenteditable="true" data-problem="${index}" data-field="choice" data-choice="${i}">${choice}</span>
+                                <span class="preview-choice-text editable" contenteditable="true" data-problem="${index}" data-field="choice" data-choice="${i}">${escapeHtmlWithFormatting(choice)}</span>
                             </li>
                         `).join('')}
                     </ul>
                 `;
             }
-            
+
             return `
                 <div class="preview-problem" data-index="${index}">
                     <div class="preview-problem-header">
-                        <span class="preview-problem-title">${problem.title}</span>
+                        <span class="preview-problem-title">${escapeHtmlWithFormatting(problem.title)}</span>
                         <span class="preview-problem-type ${typeClass}">${typeName}</span>
                     </div>
-                    <div class="preview-question editable" contenteditable="true" data-problem="${index}" data-field="question">${problem.question}</div>
+                    <div class="preview-question editable" contenteditable="true" data-problem="${index}" data-field="question">${escapeHtmlWithFormatting(problem.question)}</div>
                     ${choicesHTML}
                     <div class="preview-explanation">
                         <div class="preview-explanation-label">Explanation</div>
-                        <div class="preview-explanation-text editable" contenteditable="true" data-problem="${index}" data-field="explanation">${problem.explanation}</div>
+                        <div class="preview-explanation-text editable" contenteditable="true" data-problem="${index}" data-field="explanation">${escapeHtmlWithFormatting(problem.explanation)}</div>
                     </div>
                 </div>
             `;
