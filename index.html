@@ -1712,7 +1712,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 if (problem.answerType === 'numerical') {
                     olx += `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
-                    olx += `  <numericalresponse answer="${escapeXml(problem.answer)}">\n`;
+                    olx += `  <numericalresponse answer="${escapeXml(problem.answer || '')}">\n`;
                     olx += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
                     olx += `    <textline/>\n`;
                     olx += `  </numericalresponse>\n`;
@@ -1725,7 +1725,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     olx += `</problem>\n\n`;
                 } else if (problem.answerType === 'text') {
                     olx += `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
-                    olx += `  <stringresponse answer="${escapeXml(problem.answer)}" type="ci">\n`;
+                    olx += `  <stringresponse answer="${escapeXml(problem.answer || '')}" type="ci">\n`;
                     olx += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
                     olx += `    <textline size="40"/>\n`;
                     olx += `  </stringresponse>\n`;
@@ -1940,9 +1940,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
         
         function handleEdit(e) {
             const el = e.target;
-            const problemIndex = parseInt(el.dataset.problem);
+            const problemIndex = parseInt(el.dataset.problem, 10);
             const field = el.dataset.field;
-            const choiceIndex = el.dataset.choice !== undefined ? parseInt(el.dataset.choice) : null;
+            const choiceIndex = el.dataset.choice !== undefined ? parseInt(el.dataset.choice, 10) : null;
             
             if (!currentProblems[problemIndex]) return;
             
@@ -2302,12 +2302,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
             let xml = `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
             
             if (problem.answerType === 'numerical') {
-                xml += `  <numericalresponse answer="${escapeXml(problem.answer)}">\n`;
+                xml += `  <numericalresponse answer="${escapeXml(problem.answer || '')}">\n`;
                 xml += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
                 xml += `    <textline/>\n`;
                 xml += `  </numericalresponse>\n`;
             } else if (problem.answerType === 'text') {
-                xml += `  <stringresponse answer="${escapeXml(problem.answer)}" type="ci">\n`;
+                xml += `  <stringresponse answer="${escapeXml(problem.answer || '')}" type="ci">\n`;
                 xml += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
                 xml += `    <textline size="40"/>\n`;
                 xml += `  </stringresponse>\n`;
