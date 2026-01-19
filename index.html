@@ -1758,8 +1758,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         `    <choicegroup type="MultipleChoice">`
                     );
 
-                    problem.choices.forEach((choice, j) => {
-                        const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
+                    const choices = problem.choices || [];
+                    const correctIndices = problem.correctIndices || [];
+                    choices.forEach((choice, j) => {
+                        const correct = correctIndices.includes(j) ? 'true' : 'false';
                         parts.push(`      <choice correct="${correct}">${escapeXmlWithFormatting(choice)}</choice>`);
                     });
 
@@ -1782,8 +1784,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         `    <checkboxgroup>`
                     );
 
-                    problem.choices.forEach((choice, j) => {
-                        const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
+                    const choices = problem.choices || [];
+                    const correctIndices = problem.correctIndices || [];
+                    choices.forEach((choice, j) => {
+                        const correct = correctIndices.includes(j) ? 'true' : 'false';
                         parts.push(`      <choice correct="${correct}">${escapeXmlWithFormatting(choice)}</choice>`);
                     });
 
@@ -1855,17 +1859,20 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 warningCard: document.getElementById('stat-warnings')
             };
 
-            statElements.total.textContent = stats.total;
-            statElements.mc.textContent = stats.multipleChoice;
-            statElements.checkbox.textContent = stats.checkbox;
-            statElements.numerical.textContent = stats.numerical;
-            statElements.text.textContent = stats.text;
-            statElements.choices.textContent = avgChoices;
-            statElements.warnings.textContent = stats.warnings;
+            // Add null checks to prevent errors if elements don't exist
+            if (statElements.total) statElements.total.textContent = stats.total;
+            if (statElements.mc) statElements.mc.textContent = stats.multipleChoice;
+            if (statElements.checkbox) statElements.checkbox.textContent = stats.checkbox;
+            if (statElements.numerical) statElements.numerical.textContent = stats.numerical;
+            if (statElements.text) statElements.text.textContent = stats.text;
+            if (statElements.choices) statElements.choices.textContent = avgChoices;
+            if (statElements.warnings) statElements.warnings.textContent = stats.warnings;
 
-            statElements.warningCard.classList.remove('warning', 'error');
-            if (stats.warnings > 0) {
-                statElements.warningCard.classList.add('warning');
+            if (statElements.warningCard) {
+                statElements.warningCard.classList.remove('warning', 'error');
+                if (stats.warnings > 0) {
+                    statElements.warningCard.classList.add('warning');
+                }
             }
         }
         
@@ -2391,8 +2398,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     `    <choicegroup type="MultipleChoice">`
                 );
 
-                problem.choices.forEach((choice, j) => {
-                    const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
+                const choices = problem.choices || [];
+                const correctIndices = problem.correctIndices || [];
+                choices.forEach((choice, j) => {
+                    const correct = correctIndices.includes(j) ? 'true' : 'false';
                     parts.push(`      <choice correct="${correct}">${escapeXmlWithFormatting(choice)}</choice>`);
                 });
 
@@ -2407,8 +2416,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     `    <checkboxgroup>`
                 );
 
-                problem.choices.forEach((choice, j) => {
-                    const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
+                const choices = problem.choices || [];
+                const correctIndices = problem.correctIndices || [];
+                choices.forEach((choice, j) => {
+                    const correct = correctIndices.includes(j) ? 'true' : 'false';
                     parts.push(`      <choice correct="${correct}">${escapeXmlWithFormatting(choice)}</choice>`);
                 });
 
