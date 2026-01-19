@@ -1528,7 +1528,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     
                     if (!questionText.endsWith('?') && !questionText.match(/\(select all that apply\)$/i)) {
                         let j = i + 1;
-                        while (j < lines.length && lines[j].trim() && !lines[j].trim().toLowerCase().includes('(correct') && 
+                        while (j < lines.length && lines[j].trim() && !lines[j].trim().toLowerCase().includes('(correct') &&
                                !lines[j].trim().match(/^\d+\.\s+/) && !lines[j].trim().match(/^Part\s+\d+/i)) {
                             const nextLine = lines[j].trim();
                             questionText += ' ' + nextLine;
@@ -1537,7 +1537,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
                                 break;
                             }
                             j++;
-                            i = j;
+                        }
+                        if (j > i + 1) {
+                            i = j - 1;
                         }
                     }
                     
@@ -1567,7 +1569,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     
                     if (!questionText.endsWith('?') && !questionText.match(/\(select all that apply\)$/i)) {
                         let j = i + 1;
-                        while (j < lines.length && lines[j].trim() && !lines[j].trim().toLowerCase().includes('(correct') && 
+                        while (j < lines.length && lines[j].trim() && !lines[j].trim().toLowerCase().includes('(correct') &&
                                !lines[j].trim().match(/^\d+\.\s+/) && !lines[j].trim().match(/^Part\s+\d+/i)) {
                             const nextLine = lines[j].trim();
                             questionText += ' ' + nextLine;
@@ -1576,7 +1578,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
                                 break;
                             }
                             j++;
-                            i = j;
+                        }
+                        if (j > i + 1) {
+                            i = j - 1;
                         }
                     }
                     
