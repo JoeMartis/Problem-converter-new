@@ -1181,6 +1181,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
         let showAllMode = true;
         let previewEnabled = true;
         let savedSelection = null;
+        let editListenersInitialized = false;
         
         function escapeXml(str) {
             return str
@@ -1528,11 +1529,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     
                     if (!questionText.endsWith('?') && !questionText.match(/\(select all that apply\)$/i)) {
                         let j = i + 1;
-                        while (j < lines.length && lines[j].trim() && !lines[j].trim().toLowerCase().includes('(correct') &&
-                               !lines[j].trim().match(/^\d+\.\s+/) && !lines[j].trim().match(/^Part\s+\d+/i)) {
-                            const nextLine = lines[j].trim();
-                            questionText += ' ' + nextLine;
-                            if (nextLine.endsWith('?') || nextLine.match(/\(select all that apply\)$/i)) {
+                        while (j < lines.length) {
+                            const trimmedLine = lines[j].trim();
+                            if (!trimmedLine || trimmedLine.toLowerCase().includes('(correct') ||
+                                trimmedLine.match(/^\d+\.\s+/) || trimmedLine.match(/^Part\s+\d+/i)) {
+                                break;
+                            }
+                            questionText += ' ' + trimmedLine;
+                            if (trimmedLine.endsWith('?') || trimmedLine.match(/\(select all that apply\)$/i)) {
                                 i = j;
                                 break;
                             }
@@ -1569,11 +1573,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     
                     if (!questionText.endsWith('?') && !questionText.match(/\(select all that apply\)$/i)) {
                         let j = i + 1;
-                        while (j < lines.length && lines[j].trim() && !lines[j].trim().toLowerCase().includes('(correct') &&
-                               !lines[j].trim().match(/^\d+\.\s+/) && !lines[j].trim().match(/^Part\s+\d+/i)) {
-                            const nextLine = lines[j].trim();
-                            questionText += ' ' + nextLine;
-                            if (nextLine.endsWith('?') || nextLine.match(/\(select all that apply\)$/i)) {
+                        while (j < lines.length) {
+                            const trimmedLine = lines[j].trim();
+                            if (!trimmedLine || trimmedLine.toLowerCase().includes('(correct') ||
+                                trimmedLine.match(/^\d+\.\s+/) || trimmedLine.match(/^Part\s+\d+/i)) {
+                                break;
+                            }
+                            questionText += ' ' + trimmedLine;
+                            if (trimmedLine.endsWith('?') || trimmedLine.match(/\(select all that apply\)$/i)) {
                                 i = j;
                                 break;
                             }
@@ -1708,82 +1715,95 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function generateOLX(problems) {
-            let olx = '';
-            
-            for (let i = 0; i < problems.length; i++) {
-                const problem = problems[i];
+            // Use array and join for better performance than string concatenation
+            const olxParts = problems.map(problem => {
                 const displayName = problem.title;
-                
+                const parts = [];
+
                 if (problem.answerType === 'numerical') {
-                    olx += `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
-                    olx += `  <numericalresponse answer="${escapeXml(problem.answer || '')}">\n`;
-                    olx += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
-                    olx += `    <textline/>\n`;
-                    olx += `  </numericalresponse>\n`;
-                    olx += `  <solution>\n`;
-                    olx += `    <div class="detailed-solution">\n`;
-                    olx += `      <p>Explanation</p>\n`;
-                    olx += `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>\n`;
-                    olx += `    </div>\n`;
-                    olx += `  </solution>\n`;
-                    olx += `</problem>\n\n`;
+                    parts.push(
+                        `<problem display_name="${escapeXml(displayName)}" markdown="null">`,
+                        `  <numericalresponse answer="${escapeXml(problem.answer || '')}">`,
+                        `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
+                        `    <textline/>`,
+                        `  </numericalresponse>`,
+                        `  <solution>`,
+                        `    <div class="detailed-solution">`,
+                        `      <p>Explanation</p>`,
+                        `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>`,
+                        `    </div>`,
+                        `  </solution>`,
+                        `</problem>`
+                    );
                 } else if (problem.answerType === 'text') {
-                    olx += `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
-                    olx += `  <stringresponse answer="${escapeXml(problem.answer || '')}" type="ci">\n`;
-                    olx += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
-                    olx += `    <textline size="40"/>\n`;
-                    olx += `  </stringresponse>\n`;
-                    olx += `  <solution>\n`;
-                    olx += `    <div class="detailed-solution">\n`;
-                    olx += `      <p>Explanation</p>\n`;
-                    olx += `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>\n`;
-                    olx += `    </div>\n`;
-                    olx += `  </solution>\n`;
-                    olx += `</problem>\n\n`;
+                    parts.push(
+                        `<problem display_name="${escapeXml(displayName)}" markdown="null">`,
+                        `  <stringresponse answer="${escapeXml(problem.answer || '')}" type="ci">`,
+                        `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
+                        `    <textline size="40"/>`,
+                        `  </stringresponse>`,
+                        `  <solution>`,
+                        `    <div class="detailed-solution">`,
+                        `      <p>Explanation</p>`,
+                        `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>`,
+                        `    </div>`,
+                        `  </solution>`,
+                        `</problem>`
+                    );
                 } else if (problem.isMultipleChoice) {
-                    olx += `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
-                    olx += `  <multiplechoiceresponse>\n`;
-                    olx += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
-                    olx += `    <choicegroup type="MultipleChoice">\n`;
-                    
-                    for (let j = 0; j < problem.choices.length; j++) {
+                    parts.push(
+                        `<problem display_name="${escapeXml(displayName)}" markdown="null">`,
+                        `  <multiplechoiceresponse>`,
+                        `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
+                        `    <choicegroup type="MultipleChoice">`
+                    );
+
+                    problem.choices.forEach((choice, j) => {
                         const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
-                        olx += `      <choice correct="${correct}">${escapeXmlWithFormatting(problem.choices[j])}</choice>\n`;
-                    }
-                    
-                    olx += `    </choicegroup>\n`;
-                    olx += `  </multiplechoiceresponse>\n`;
-                    olx += `  <solution>\n`;
-                    olx += `    <div class="detailed-solution">\n`;
-                    olx += `      <p>Explanation</p>\n`;
-                    olx += `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>\n`;
-                    olx += `    </div>\n`;
-                    olx += `  </solution>\n`;
-                    olx += `</problem>\n\n`;
+                        parts.push(`      <choice correct="${correct}">${escapeXmlWithFormatting(choice)}</choice>`);
+                    });
+
+                    parts.push(
+                        `    </choicegroup>`,
+                        `  </multiplechoiceresponse>`,
+                        `  <solution>`,
+                        `    <div class="detailed-solution">`,
+                        `      <p>Explanation</p>`,
+                        `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>`,
+                        `    </div>`,
+                        `  </solution>`,
+                        `</problem>`
+                    );
                 } else {
-                    olx += `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
-                    olx += `  <choiceresponse>\n`;
-                    olx += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
-                    olx += `    <checkboxgroup>\n`;
-                    
-                    for (let j = 0; j < problem.choices.length; j++) {
+                    parts.push(
+                        `<problem display_name="${escapeXml(displayName)}" markdown="null">`,
+                        `  <choiceresponse>`,
+                        `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
+                        `    <checkboxgroup>`
+                    );
+
+                    problem.choices.forEach((choice, j) => {
                         const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
-                        olx += `      <choice correct="${correct}">${escapeXmlWithFormatting(problem.choices[j])}</choice>\n`;
-                    }
-                    
-                    olx += `    </checkboxgroup>\n`;
-                    olx += `  </choiceresponse>\n`;
-                    olx += `  <solution>\n`;
-                    olx += `    <div class="detailed-solution">\n`;
-                    olx += `      <p>Explanation</p>\n`;
-                    olx += `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>\n`;
-                    olx += `    </div>\n`;
-                    olx += `  </solution>\n`;
-                    olx += `</problem>\n\n`;
+                        parts.push(`      <choice correct="${correct}">${escapeXmlWithFormatting(choice)}</choice>`);
+                    });
+
+                    parts.push(
+                        `    </checkboxgroup>`,
+                        `  </choiceresponse>`,
+                        `  <solution>`,
+                        `    <div class="detailed-solution">`,
+                        `      <p>Explanation</p>`,
+                        `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>`,
+                        `    </div>`,
+                        `  </solution>`,
+                        `</problem>`
+                    );
                 }
-            }
-            
-            return olx.trim();
+
+                return parts.join('\n');
+            });
+
+            return olxParts.join('\n\n');
         }
         
         function updateStatistics(problems) {
@@ -1822,19 +1842,30 @@ Explanation: Sales by category represents distinct groups."></textarea>
             });
             
             const avgChoices = stats.choiceProblems > 0 ? (stats.totalChoices / stats.choiceProblems).toFixed(1) : '0';
-            
-            document.querySelector('#stat-total .stat-value').textContent = stats.total;
-            document.querySelector('#stat-mc .stat-value').textContent = stats.multipleChoice;
-            document.querySelector('#stat-checkbox .stat-value').textContent = stats.checkbox;
-            document.querySelector('#stat-numerical .stat-value').textContent = stats.numerical;
-            document.querySelector('#stat-text .stat-value').textContent = stats.text;
-            document.querySelector('#stat-choices .stat-value').textContent = avgChoices;
-            document.querySelector('#stat-warnings .stat-value').textContent = stats.warnings;
-            
-            const warningCard = document.getElementById('stat-warnings');
-            warningCard.classList.remove('warning', 'error');
+
+            // Cache DOM queries for better performance
+            const statElements = {
+                total: document.querySelector('#stat-total .stat-value'),
+                mc: document.querySelector('#stat-mc .stat-value'),
+                checkbox: document.querySelector('#stat-checkbox .stat-value'),
+                numerical: document.querySelector('#stat-numerical .stat-value'),
+                text: document.querySelector('#stat-text .stat-value'),
+                choices: document.querySelector('#stat-choices .stat-value'),
+                warnings: document.querySelector('#stat-warnings .stat-value'),
+                warningCard: document.getElementById('stat-warnings')
+            };
+
+            statElements.total.textContent = stats.total;
+            statElements.mc.textContent = stats.multipleChoice;
+            statElements.checkbox.textContent = stats.checkbox;
+            statElements.numerical.textContent = stats.numerical;
+            statElements.text.textContent = stats.text;
+            statElements.choices.textContent = avgChoices;
+            statElements.warnings.textContent = stats.warnings;
+
+            statElements.warningCard.classList.remove('warning', 'error');
             if (stats.warnings > 0) {
-                warningCard.classList.add('warning');
+                statElements.warningCard.classList.add('warning');
             }
         }
         
@@ -1940,12 +1971,37 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function attachEditListeners() {
-            document.querySelectorAll('.editable').forEach(el => {
-                el.addEventListener('input', handleEdit);
-                el.addEventListener('focus', handleFocus);
-                el.addEventListener('blur', handleBlur);
-                el.addEventListener('keydown', handleKeydown);
+            // Use event delegation to avoid memory leaks from duplicate listeners
+            if (editListenersInitialized) return;
+
+            const container = document.getElementById('previewContainer');
+
+            // Use event delegation on the parent container
+            container.addEventListener('input', function(e) {
+                if (e.target.classList.contains('editable')) {
+                    handleEdit(e);
+                }
             });
+
+            container.addEventListener('focus', function(e) {
+                if (e.target.classList.contains('editable')) {
+                    handleFocus(e);
+                }
+            }, true); // Use capture phase for focus
+
+            container.addEventListener('blur', function(e) {
+                if (e.target.classList.contains('editable')) {
+                    handleBlur(e);
+                }
+            }, true); // Use capture phase for blur
+
+            container.addEventListener('keydown', function(e) {
+                if (e.target.classList.contains('editable')) {
+                    handleKeydown(e);
+                }
+            });
+
+            editListenersInitialized = true;
         }
         
         function handleEdit(e) {
@@ -2312,53 +2368,67 @@ Explanation: Sales by category represents distinct groups."></textarea>
         
         function generateSingleProblemXML(problem, index) {
             const displayName = problem.title;
-            let xml = `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
-            
+            const parts = [`<problem display_name="${escapeXml(displayName)}" markdown="null">`];
+
             if (problem.answerType === 'numerical') {
-                xml += `  <numericalresponse answer="${escapeXml(problem.answer || '')}">\n`;
-                xml += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
-                xml += `    <textline/>\n`;
-                xml += `  </numericalresponse>\n`;
+                parts.push(
+                    `  <numericalresponse answer="${escapeXml(problem.answer || '')}">`,
+                    `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
+                    `    <textline/>`,
+                    `  </numericalresponse>`
+                );
             } else if (problem.answerType === 'text') {
-                xml += `  <stringresponse answer="${escapeXml(problem.answer || '')}" type="ci">\n`;
-                xml += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
-                xml += `    <textline size="40"/>\n`;
-                xml += `  </stringresponse>\n`;
+                parts.push(
+                    `  <stringresponse answer="${escapeXml(problem.answer || '')}" type="ci">`,
+                    `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
+                    `    <textline size="40"/>`,
+                    `  </stringresponse>`
+                );
             } else if (problem.isMultipleChoice) {
-                xml += `  <multiplechoiceresponse>\n`;
-                xml += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
-                xml += `    <choicegroup type="MultipleChoice">\n`;
-                
-                for (let j = 0; j < problem.choices.length; j++) {
+                parts.push(
+                    `  <multiplechoiceresponse>`,
+                    `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
+                    `    <choicegroup type="MultipleChoice">`
+                );
+
+                problem.choices.forEach((choice, j) => {
                     const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
-                    xml += `      <choice correct="${correct}">${escapeXmlWithFormatting(problem.choices[j])}</choice>\n`;
-                }
-                
-                xml += `    </choicegroup>\n`;
-                xml += `  </multiplechoiceresponse>\n`;
+                    parts.push(`      <choice correct="${correct}">${escapeXmlWithFormatting(choice)}</choice>`);
+                });
+
+                parts.push(
+                    `    </choicegroup>`,
+                    `  </multiplechoiceresponse>`
+                );
             } else {
-                xml += `  <choiceresponse>\n`;
-                xml += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
-                xml += `    <checkboxgroup>\n`;
-                
-                for (let j = 0; j < problem.choices.length; j++) {
+                parts.push(
+                    `  <choiceresponse>`,
+                    `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
+                    `    <checkboxgroup>`
+                );
+
+                problem.choices.forEach((choice, j) => {
                     const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
-                    xml += `      <choice correct="${correct}">${escapeXmlWithFormatting(problem.choices[j])}</choice>\n`;
-                }
-                
-                xml += `    </checkboxgroup>\n`;
-                xml += `  </choiceresponse>\n`;
+                    parts.push(`      <choice correct="${correct}">${escapeXmlWithFormatting(choice)}</choice>`);
+                });
+
+                parts.push(
+                    `    </checkboxgroup>`,
+                    `  </choiceresponse>`
+                );
             }
-            
-            xml += `  <solution>\n`;
-            xml += `    <div class="detailed-solution">\n`;
-            xml += `      <p>Explanation</p>\n`;
-            xml += `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>\n`;
-            xml += `    </div>\n`;
-            xml += `  </solution>\n`;
-            xml += `</problem>`;
-            
-            return xml;
+
+            parts.push(
+                `  <solution>`,
+                `    <div class="detailed-solution">`,
+                `      <p>Explanation</p>`,
+                `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>`,
+                `    </div>`,
+                `  </solution>`,
+                `</problem>`
+            );
+
+            return parts.join('\n');
         }
         
         async function downloadLibrary() {
