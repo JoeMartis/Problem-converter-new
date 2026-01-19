@@ -1184,6 +1184,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
         let editListenersInitialized = false;
         
         function escapeXml(str) {
+            if (!str) return '';
             return str
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
@@ -1193,6 +1194,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
 
         function escapeHtml(str) {
+            if (!str) return '';
             const div = document.createElement('div');
             div.textContent = str;
             return div.innerHTML;
@@ -1329,6 +1331,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function cleanText(text) {
+            if (!text) return '';
             return text
                 .replace(/\*\*/g, '')
                 .replace(/\[/g, '')
@@ -1829,15 +1832,19 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     stats.text++;
                 } else if (p.isMultipleChoice) {
                     stats.multipleChoice++;
-                    stats.totalChoices += p.choices.length;
-                    stats.choiceProblems++;
+                    if (p.choices) {
+                        stats.totalChoices += p.choices.length;
+                        stats.choiceProblems++;
+                    }
                 } else {
                     stats.checkbox++;
-                    stats.totalChoices += p.choices.length;
-                    stats.choiceProblems++;
+                    if (p.choices) {
+                        stats.totalChoices += p.choices.length;
+                        stats.choiceProblems++;
+                    }
                 }
-                
-                if (p.choices && p.choices.length > 0 && p.correctIndices.length === 0) {
+
+                if (p.choices && p.choices.length > 0 && p.correctIndices && p.correctIndices.length === 0) {
                     stats.warnings++;
                 }
                 if (p.choices && p.choices.length < 2 && !p.answerType) {
