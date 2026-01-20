@@ -1,0 +1,1882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open edX OLX Problem Converter</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Crimson+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a2332;
+            --bg-tertiary: #253447;
+            --accent-primary: #00d4aa;
+            --accent-secondary: #00a8e8;
+            --text-primary: #e8f4f8;
+            --text-secondary: #8fa3b0;
+            --border: #2d3f54;
+            --success: #00d4aa;
+            --warning: #ffd93d;
+            --error: #ff6b6b;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Crimson Pro', serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            position: relative;
+        }
+        
+        h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+            animation: slideDown 0.6s ease-out;
+        }
+        
+        .subtitle {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            animation: fadeIn 0.8s ease-out 0.2s both;
+        }
+        
+        /* Statistics Dashboard */
+        .stats-dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+            animation: fadeIn 0.8s ease-out 0.3s both;
+        }
+        
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent-primary);
+            box-shadow: 0 8px 24px rgba(0, 212, 170, 0.15);
+        }
+        
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            display: block;
+        }
+        
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 5px;
+        }
+        
+        .stat-card.warning .stat-value {
+            color: var(--warning);
+        }
+        
+        .stat-card.error .stat-value {
+            color: var(--error);
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            animation: fadeIn 1s ease-out 0.4s both;
+        }
+        
+        .main-grid.three-col {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+        
+        .panel {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .panel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 212, 170, 0.1);
+        }
+        
+        .panel-header {
+            background: var(--bg-tertiary);
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .panel-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--accent-primary);
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .panel-badge {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+        
+        .panel-body {
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        textarea {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            resize: vertical;
+            min-height: 450px;
+            flex: 1;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            line-height: 1.5;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1);
+        }
+        
+        textarea::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            animation: fadeIn 1s ease-out 0.6s both;
+        }
+        
+        button {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 12px 22px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button:before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        button:hover:before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 212, 170, 0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button span {
+            position: relative;
+            z-index: 1;
+        }
+        
+        button.secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+        }
+        
+        button.secondary:hover {
+            border-color: var(--accent-primary);
+            box-shadow: 0 8px 24px rgba(0, 212, 170, 0.15);
+        }
+        
+        .output-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .output-actions button {
+            font-size: 0.75rem;
+            padding: 8px 14px;
+        }
+        
+        pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 450px;
+            flex: 1;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        /* Preview Pane Styles */
+        .preview-container {
+            background: var(--bg-primary);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 0;
+            overflow-y: auto;
+            max-height: 500px;
+            flex: 1;
+        }
+        
+        .preview-problem {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s ease;
+        }
+        
+        .preview-problem:last-child {
+            border-bottom: none;
+        }
+        
+        .preview-problem:hover {
+            background: rgba(0, 212, 170, 0.03);
+        }
+        
+        .preview-problem-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .preview-problem-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--accent-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .preview-problem-type {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+        
+        .preview-problem-type.multiple-choice {
+            background: rgba(0, 168, 232, 0.2);
+            color: var(--accent-secondary);
+        }
+        
+        .preview-problem-type.checkbox {
+            background: rgba(0, 212, 170, 0.2);
+            color: var(--accent-primary);
+        }
+        
+        .preview-problem-type.numerical {
+            background: rgba(255, 217, 61, 0.2);
+            color: var(--warning);
+        }
+        
+        .preview-problem-type.text {
+            background: rgba(168, 218, 220, 0.2);
+            color: #a8dadc;
+        }
+        
+        .preview-question {
+            font-size: 1.1rem;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        
+        .preview-choices {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 15px 0;
+        }
+        
+        .preview-choice {
+            display: flex;
+            align-items: flex-start;
+            padding: 10px 12px;
+            margin: 6px 0;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            transition: all 0.2s ease;
+            cursor: default;
+        }
+        
+        .preview-choice:hover {
+            border-color: var(--accent-primary);
+        }
+        
+        .preview-choice.correct {
+            border-color: var(--success);
+            background: rgba(0, 212, 170, 0.1);
+        }
+        
+        .preview-choice-indicator {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            margin-right: 12px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 2px;
+        }
+        
+        .preview-choice-indicator.checkbox {
+            border-radius: 4px;
+        }
+        
+        .preview-choice.correct .preview-choice-indicator {
+            border-color: var(--success);
+            background: var(--success);
+        }
+        
+        .preview-choice.correct .preview-choice-indicator::after {
+            content: '✓';
+            color: var(--bg-primary);
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .preview-choice-text {
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+        
+        .preview-input-field {
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 14px;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            width: 200px;
+            margin-bottom: 15px;
+        }
+        
+        .preview-answer-hint {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--success);
+            margin-bottom: 15px;
+        }
+        
+        .preview-explanation {
+            background: var(--bg-tertiary);
+            border-left: 3px solid var(--accent-primary);
+            padding: 12px 16px;
+            border-radius: 0 6px 6px 0;
+            margin-top: 10px;
+        }
+        
+        .preview-explanation-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--accent-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+        
+        .preview-explanation-text {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .preview-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            color: var(--text-secondary);
+        }
+        
+        .preview-empty-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        
+        .preview-nav {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        
+        .preview-nav button {
+            padding: 6px 12px;
+            font-size: 0.75rem;
+        }
+        
+        .preview-nav-info {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        .status {
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .status.success {
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+            display: block;
+        }
+        
+        .status.error {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+            display: block;
+        }
+        
+        .info-panel {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 25px;
+            margin-top: 25px;
+            animation: fadeIn 1s ease-out 0.8s both;
+        }
+        
+        .info-panel h2 {
+            font-size: 1.3rem;
+            color: var(--accent-primary);
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .info-panel ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .info-panel li {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+        
+        .info-panel li:last-child {
+            border-bottom: none;
+        }
+        
+        .info-panel li:before {
+            content: '→';
+            color: var(--accent-primary);
+            margin-right: 12px;
+            font-weight: bold;
+        }
+        
+        /* Toggle for preview */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .toggle-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            border: 2px solid var(--border);
+        }
+        
+        .toggle.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+        
+        .toggle-knob {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+        }
+        
+        .toggle.active .toggle-knob {
+            transform: translateX(20px);
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        @media (max-width: 1200px) {
+            .main-grid.three-col {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        
+        @media (max-width: 900px) {
+            .main-grid,
+            .main-grid.three-col {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 2.2rem;
+            }
+            
+            .stats-dashboard {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        @media (max-width: 500px) {
+            .stats-dashboard {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OLX Problem Converter</h1>
+            <p class="subtitle">Open edX • Multiple Choice • Problem Bank</p>
+        </header>
+        
+        <!-- Statistics Dashboard -->
+        <div class="stats-dashboard">
+            <div class="stat-card" id="stat-total">
+                <span class="stat-value">0</span>
+                <div class="stat-label">Problems</div>
+            </div>
+            <div class="stat-card" id="stat-mc">
+                <span class="stat-value">0</span>
+                <div class="stat-label">Single Choice</div>
+            </div>
+            <div class="stat-card" id="stat-checkbox">
+                <span class="stat-value">0</span>
+                <div class="stat-label">Multi-Select</div>
+            </div>
+            <div class="stat-card" id="stat-numerical">
+                <span class="stat-value">0</span>
+                <div class="stat-label">Numerical</div>
+            </div>
+            <div class="stat-card" id="stat-text">
+                <span class="stat-value">0</span>
+                <div class="stat-label">Text Input</div>
+            </div>
+            <div class="stat-card" id="stat-choices">
+                <span class="stat-value">0</span>
+                <div class="stat-label">Avg Choices</div>
+            </div>
+            <div class="stat-card" id="stat-warnings">
+                <span class="stat-value">0</span>
+                <div class="stat-label">Warnings</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button onclick="convertToOLX()"><span>Convert to OLX</span></button>
+            <button class="secondary" onclick="clearAll()"><span>Clear All</span></button>
+            <button class="secondary" onclick="loadSample()"><span>Load Sample</span></button>
+            <button class="secondary" onclick="document.getElementById('fileInput').click()"><span>Upload File</span></button>
+            <input type="file" id="fileInput" accept=".txt,.docx" style="display: none;" onchange="handleFileUpload(event)">
+            <div class="toggle-container" style="margin-left: auto;">
+                <span class="toggle-label">Show Preview</span>
+                <div class="toggle active" id="previewToggle" onclick="togglePreview()">
+                    <div class="toggle-knob"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="main-grid three-col" id="mainGrid">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Input</span>
+                </div>
+                <div class="panel-body">
+                    <textarea id="input" placeholder="Paste your problem text here...
+
+Example format:
+
+What type of data is best visualized with a bar chart?
+Continuous time series data
+Relationships between variables
+Discrete categorical comparisons (correct)
+Cumulative totals
+Explanation: Bar charts are ideal for comparing discrete categories.
+
+Which scenario is best suited for a bar chart?
+Comparing sales across product categories (correct)
+Tracking stock prices throughout the day
+Examining the relationship between variables
+Plotting a sine wave
+Explanation: Sales by category represents distinct groups."></textarea>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Output (OLX)</span>
+                </div>
+                <div class="panel-body">
+                    <div class="output-actions">
+                        <button onclick="copyOutput()"><span>Copy</span></button>
+                        <button class="secondary" onclick="downloadOutput()"><span>Download XML</span></button>
+                        <button class="secondary" onclick="downloadLibrary()"><span>Download Library</span></button>
+                    </div>
+                    <pre id="output">OLX output will appear here...</pre>
+                </div>
+            </div>
+            
+            <div class="panel" id="previewPanel">
+                <div class="panel-header">
+                    <span class="panel-title">Preview</span>
+                    <span class="panel-badge" id="previewCount">0 Problems</span>
+                </div>
+                <div class="panel-body">
+                    <div class="preview-nav" id="previewNav" style="display: none;">
+                        <button class="secondary" onclick="prevProblem()"><span>← Prev</span></button>
+                        <span class="preview-nav-info" id="previewNavInfo">1 of 1</span>
+                        <button class="secondary" onclick="nextProblem()"><span>Next →</span></button>
+                        <button class="secondary" onclick="showAllProblems()" style="margin-left: auto;"><span>Show All</span></button>
+                    </div>
+                    <div class="preview-container" id="previewContainer">
+                        <div class="preview-empty">
+                            <div class="preview-empty-icon">📝</div>
+                            <div>Convert problems to see preview</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-panel">
+            <h2>How to Use</h2>
+            <ul>
+                <li>Upload a .txt or .docx file, or paste problem text directly into the input area</li>
+                <li>Each question should end with a question mark (?)</li>
+                <li>List answer choices below each question (one per line)</li>
+                <li>Mark correct answers with (correct) - supports single or multiple correct answers</li>
+                <li>Single correct answer → generates multiplechoiceresponse</li>
+                <li>Multiple correct answers → generates choiceresponse with checkboxgroup</li>
+                <li>Add "Explanation:" followed by your explanation text (optional)</li>
+                <li>Separate problems with a blank line</li>
+                <li>Click "Convert to OLX" to generate Open edX XML for all problems</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        let currentProblems = [];
+        let currentPreviewIndex = 0;
+        let showAllMode = true;
+        let previewEnabled = true;
+        
+        function escapeXml(str) {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        }
+        
+        function escapeXmlWithFormatting(text) {
+            const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code'];
+            let protected = text;
+            const tagPlaceholders = {};
+            let placeholderIndex = 0;
+            
+            allowedTags.forEach(tag => {
+                const openRegex = new RegExp(`<${tag}>`, 'gi');
+                const closeRegex = new RegExp(`</${tag}>`, 'gi');
+                
+                protected = protected.replace(openRegex, () => {
+                    const placeholder = `__PLACEHOLDER_${placeholderIndex}__`;
+                    tagPlaceholders[placeholder] = `<${tag}>`;
+                    placeholderIndex++;
+                    return placeholder;
+                });
+                
+                protected = protected.replace(closeRegex, () => {
+                    const placeholder = `__PLACEHOLDER_${placeholderIndex}__`;
+                    tagPlaceholders[placeholder] = `</${tag}>`;
+                    placeholderIndex++;
+                    return placeholder;
+                });
+            });
+            
+            protected = String(protected)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+            
+            Object.keys(tagPlaceholders).forEach(placeholder => {
+                protected = protected.replace(placeholder, tagPlaceholders[placeholder]);
+            });
+            
+            return protected;
+        }
+        
+        function cleanText(text) {
+            return text
+                .replace(/\*\*/g, '')
+                .replace(/\[/g, '')
+                .replace(/\]/g, '')
+                .replace(/\{\.underline\}/g, '')
+                .replace(/\{\.mark\}/g, '')
+                .trim();
+        }
+        
+        function parseProblems(text) {
+            const problems = [];
+            
+            let normalizedText = text
+                .replace(/(\d+\.\s+[A-Z])/g, '\n$1')
+                .replace(/(Part\s+\d+\s+Question\s+\d+)/gi, '\n\n$1\n')
+                .replace(/(\*\*Original:)/gi, '\n\n$1');
+            
+            const lines = normalizedText.split('\n');
+            
+            let libraryOrg = 'MITxT';
+            let libraryName = 'Problem Library';
+            let libraryId = 'CustomLibrary';
+            let displayNameLabel = '';
+            let startIndex = 0;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line) {
+                    const nameIdMatch = line.match(/^(.+?):\s*([A-Z0-9_]+)$/);
+                    if (nameIdMatch && nameIdMatch[2].match(/^[A-Z0-9_]+$/)) {
+                        libraryName = nameIdMatch[1].trim();
+                        libraryId = nameIdMatch[2].trim();
+                        continue;
+                    }
+                    
+                    const orgMatch = line.match(/^Organization:\s*(.+?)(?:,|$)/i);
+                    if (orgMatch) {
+                        libraryOrg = orgMatch[1].trim();
+                        continue;
+                    }
+                    
+                    const nameMatch = line.match(/Legacy Library Name:\s*(.+?)(?:,|$)/i);
+                    if (nameMatch) {
+                        libraryName = nameMatch[1].trim();
+                        continue;
+                    }
+                    
+                    const idMatch = line.match(/Library ID:\s*(.+?)(?:,|$)/i);
+                    if (idMatch) {
+                        libraryId = idMatch[1].trim();
+                        continue;
+                    }
+                    
+                    const labelMatch = line.match(/^Label:\s*(.+)/i);
+                    if (labelMatch) {
+                        displayNameLabel = labelMatch[1].trim();
+                        startIndex = i + 1;
+                        break;
+                    }
+                    
+                    const partQuestionMatch = line.match(/^Part\s+\d+\s+Question\s+\d+/i);
+                    if (partQuestionMatch) {
+                        displayNameLabel = line.trim();
+                        startIndex = i + 1;
+                        break;
+                    }
+                    
+                    if (line.match(/^Part\s+\d+$/i)) {
+                        continue;
+                    }
+                    
+                    if (line.endsWith('?') || line.match(/^\d+\.\s+/) || line.match(/^Original:/i)) {
+                        startIndex = i;
+                        break;
+                    }
+                }
+            }
+            
+            let questionText = '';
+            let choices = [];
+            let correctIndices = [];
+            let explanation = '';
+            let problemCount = 0;
+            let inChoices = false;
+            let currentLabel = '';
+            
+            for (let i = startIndex; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                const labelMatch = line.match(/^Label:\s*(.+)/i);
+                if (labelMatch) {
+                    if (questionText && choices.length > 0) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: correctIndices.length <= 1,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        questionText = '';
+                        choices = [];
+                        correctIndices = [];
+                        explanation = '';
+                        inChoices = false;
+                    }
+                    currentLabel = labelMatch[1].trim();
+                    continue;
+                }
+                
+                const partQuestionMatch = line.match(/^Part\s+\d+\s+Question\s+\d+/i);
+                if (partQuestionMatch) {
+                    if (questionText && choices.length > 0) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: correctIndices.length <= 1,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        questionText = '';
+                        choices = [];
+                        correctIndices = [];
+                        explanation = '';
+                        inChoices = false;
+                    }
+                    currentLabel = line.trim();
+                    continue;
+                }
+                
+                if (!line) {
+                    if (questionText && choices.length > 0) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: correctIndices.length <= 1,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        questionText = '';
+                        choices = [];
+                        correctIndices = [];
+                        explanation = '';
+                        inChoices = false;
+                    }
+                    continue;
+                }
+                
+                if (line.match(/^Part\s+\d+\s+Question\s+\d+/i) || 
+                    line.match(/^\*\*Part\s+\d+\s+Question\s+\d+/i)) {
+                    if (questionText && choices.length > 0) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: correctIndices.length <= 1,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        questionText = '';
+                        choices = [];
+                        correctIndices = [];
+                        explanation = '';
+                        inChoices = false;
+                    }
+                    continue;
+                }
+                
+                const originalMatch = line.match(/^Original:\s*(.+)/i) || line.match(/^\*\*Original:\s*(.+)/i);
+                if (originalMatch && choices.length === 0) {
+                    if (questionText && choices.length > 0) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: correctIndices.length <= 1,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        choices = [];
+                        correctIndices = [];
+                        explanation = '';
+                    }
+                    
+                    questionText = originalMatch[1];
+                    
+                    if (!questionText.endsWith('?') && !questionText.match(/\(select all that apply\)$/i)) {
+                        let j = i + 1;
+                        while (j < lines.length && lines[j].trim() && !lines[j].trim().includes('(correct)') && 
+                               !lines[j].trim().match(/^\d+\.\s+/) && !lines[j].trim().match(/^Part\s+\d+/i)) {
+                            const nextLine = lines[j].trim();
+                            questionText += ' ' + nextLine;
+                            if (nextLine.endsWith('?') || nextLine.match(/\(select all that apply\)$/i)) {
+                                i = j;
+                                break;
+                            }
+                            j++;
+                            i = j;
+                        }
+                    }
+                    
+                    inChoices = true;
+                    continue;
+                }
+                
+                const numberedQuestionMatch = line.match(/^\d+\.\s+(.+)/);
+                if (numberedQuestionMatch && choices.length === 0) {
+                    if (questionText && choices.length > 0) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: correctIndices.length <= 1,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        choices = [];
+                        correctIndices = [];
+                        explanation = '';
+                    }
+                    
+                    questionText = numberedQuestionMatch[1];
+                    
+                    if (!questionText.endsWith('?') && !questionText.match(/\(select all that apply\)$/i)) {
+                        let j = i + 1;
+                        while (j < lines.length && lines[j].trim() && !lines[j].trim().includes('(correct)') && 
+                               !lines[j].trim().match(/^\d+\.\s+/) && !lines[j].trim().match(/^Part\s+\d+/i)) {
+                            const nextLine = lines[j].trim();
+                            questionText += ' ' + nextLine;
+                            if (nextLine.endsWith('?') || nextLine.match(/\(select all that apply\)$/i)) {
+                                i = j;
+                                break;
+                            }
+                            j++;
+                            i = j;
+                        }
+                    }
+                    
+                    inChoices = true;
+                    continue;
+                }
+                
+                const selectAllPattern = /\(select all that apply\)$/i;
+                const isQuestion = (line.endsWith('?') || selectAllPattern.test(line)) && !line.toLowerCase().startsWith('explanation');
+                
+                if (isQuestion) {
+                    if (questionText && choices.length > 0) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: correctIndices.length <= 1,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        choices = [];
+                        correctIndices = [];
+                        explanation = '';
+                    }
+                    
+                    questionText = line;
+                    inChoices = true;
+                    continue;
+                }
+                
+                const answerMatch = line.match(/^Answer:\s*(.+?)(?:Explanation:\s*(.+))?$/i);
+                if (answerMatch && questionText && choices.length === 0) {
+                    const answerValue = answerMatch[1].trim();
+                    const inlineExplanation = answerMatch[2] ? answerMatch[2].trim() : '';
+                    const isNumerical = /^-?\d+\.?\d*$/.test(answerValue) || /^-?\d*\.?\d+$/.test(answerValue);
+                    
+                    problemCount++;
+                    const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                    
+                    problems.push({
+                        title: displayName,
+                        question: cleanText(questionText),
+                        answer: answerValue,
+                        answerType: isNumerical ? 'numerical' : 'text',
+                        choices: [],
+                        correctIndices: [],
+                        isMultipleChoice: false,
+                        explanation: inlineExplanation || explanation || 'Add your explanation here'
+                    });
+                    
+                    questionText = '';
+                    choices = [];
+                    correctIndices = [];
+                    explanation = '';
+                    inChoices = false;
+                    continue;
+                }
+                
+                if (line.toLowerCase().startsWith('explanation:') || 
+                    line.toLowerCase().startsWith('explain:') ||
+                    line.toLowerCase() === 'explanation') {
+                    inChoices = false;
+                    explanation = line.replace(/^explanation:\s*/i, '').replace(/^explain:\s*/i, '');
+                    if (!explanation || explanation.toLowerCase() === 'explanation') {
+                        explanation = '';
+                    }
+                    continue;
+                }
+                
+                if (!inChoices && questionText && choices.length > 0) {
+                    explanation += (explanation ? ' ' : '') + line;
+                    continue;
+                }
+                
+                if (questionText && inChoices) {
+                    const isCorrect = line.includes('(correct)') || line.includes('**(correct');
+                    const choiceText = line
+                        .replace(/\*\*\(correct.*?\)\*\*/i, '')
+                        .replace(/\(correct.*?\)/i, '')
+                        .replace(/\\$/, '')
+                        .trim();
+                    
+                    if (choiceText) {
+                        if (isCorrect) {
+                            correctIndices.push(choices.length);
+                        }
+                        choices.push({ text: choiceText, correct: isCorrect });
+                    }
+                }
+            }
+            
+            if (questionText && choices.length > 0) {
+                problemCount++;
+                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                problems.push({
+                    title: displayName,
+                    question: cleanText(questionText),
+                    choices: choices.map(c => cleanText(c.text)),
+                    correctIndices: correctIndices,
+                    isMultipleChoice: correctIndices.length <= 1,
+                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                });
+            }
+            
+            return {
+                problems: problems,
+                displayNameLabel: displayNameLabel || 'Problem',
+                libraryOrg: libraryOrg,
+                libraryName: libraryName,
+                libraryId: libraryId
+            };
+        }
+        
+        function generateOLX(problems) {
+            let olx = '';
+            
+            for (let i = 0; i < problems.length; i++) {
+                const problem = problems[i];
+                const displayName = problem.title;
+                
+                if (problem.answerType === 'numerical') {
+                    olx += `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
+                    olx += `  <numericalresponse answer="${escapeXml(problem.answer)}">\n`;
+                    olx += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
+                    olx += `    <textline/>\n`;
+                    olx += `  </numericalresponse>\n`;
+                    olx += `  <solution>\n`;
+                    olx += `    <div class="detailed-solution">\n`;
+                    olx += `      <p>Explanation</p>\n`;
+                    olx += `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>\n`;
+                    olx += `    </div>\n`;
+                    olx += `  </solution>\n`;
+                    olx += `</problem>\n\n`;
+                } else if (problem.answerType === 'text') {
+                    olx += `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
+                    olx += `  <stringresponse answer="${escapeXml(problem.answer)}" type="ci">\n`;
+                    olx += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
+                    olx += `    <textline size="40"/>\n`;
+                    olx += `  </stringresponse>\n`;
+                    olx += `  <solution>\n`;
+                    olx += `    <div class="detailed-solution">\n`;
+                    olx += `      <p>Explanation</p>\n`;
+                    olx += `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>\n`;
+                    olx += `    </div>\n`;
+                    olx += `  </solution>\n`;
+                    olx += `</problem>\n\n`;
+                } else if (problem.isMultipleChoice) {
+                    olx += `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
+                    olx += `  <multiplechoiceresponse>\n`;
+                    olx += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
+                    olx += `    <choicegroup type="MultipleChoice">\n`;
+                    
+                    for (let j = 0; j < problem.choices.length; j++) {
+                        const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
+                        olx += `      <choice correct="${correct}">${escapeXmlWithFormatting(problem.choices[j])}</choice>\n`;
+                    }
+                    
+                    olx += `    </choicegroup>\n`;
+                    olx += `  </multiplechoiceresponse>\n`;
+                    olx += `  <solution>\n`;
+                    olx += `    <div class="detailed-solution">\n`;
+                    olx += `      <p>Explanation</p>\n`;
+                    olx += `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>\n`;
+                    olx += `    </div>\n`;
+                    olx += `  </solution>\n`;
+                    olx += `</problem>\n\n`;
+                } else {
+                    olx += `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
+                    olx += `  <choiceresponse>\n`;
+                    olx += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
+                    olx += `    <checkboxgroup>\n`;
+                    
+                    for (let j = 0; j < problem.choices.length; j++) {
+                        const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
+                        olx += `      <choice correct="${correct}">${escapeXmlWithFormatting(problem.choices[j])}</choice>\n`;
+                    }
+                    
+                    olx += `    </checkboxgroup>\n`;
+                    olx += `  </choiceresponse>\n`;
+                    olx += `  <solution>\n`;
+                    olx += `    <div class="detailed-solution">\n`;
+                    olx += `      <p>Explanation</p>\n`;
+                    olx += `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>\n`;
+                    olx += `    </div>\n`;
+                    olx += `  </solution>\n`;
+                    olx += `</problem>\n\n`;
+                }
+            }
+            
+            return olx.trim();
+        }
+        
+        function updateStatistics(problems) {
+            const stats = {
+                total: problems.length,
+                multipleChoice: 0,
+                checkbox: 0,
+                numerical: 0,
+                text: 0,
+                totalChoices: 0,
+                choiceProblems: 0,
+                warnings: 0
+            };
+            
+            problems.forEach(p => {
+                if (p.answerType === 'numerical') {
+                    stats.numerical++;
+                } else if (p.answerType === 'text') {
+                    stats.text++;
+                } else if (p.isMultipleChoice) {
+                    stats.multipleChoice++;
+                    stats.totalChoices += p.choices.length;
+                    stats.choiceProblems++;
+                } else {
+                    stats.checkbox++;
+                    stats.totalChoices += p.choices.length;
+                    stats.choiceProblems++;
+                }
+                
+                // Check for warnings
+                if (p.choices && p.choices.length > 0 && p.correctIndices.length === 0) {
+                    stats.warnings++;
+                }
+                if (p.choices && p.choices.length < 2 && !p.answerType) {
+                    stats.warnings++;
+                }
+            });
+            
+            const avgChoices = stats.choiceProblems > 0 ? (stats.totalChoices / stats.choiceProblems).toFixed(1) : '0';
+            
+            document.querySelector('#stat-total .stat-value').textContent = stats.total;
+            document.querySelector('#stat-mc .stat-value').textContent = stats.multipleChoice;
+            document.querySelector('#stat-checkbox .stat-value').textContent = stats.checkbox;
+            document.querySelector('#stat-numerical .stat-value').textContent = stats.numerical;
+            document.querySelector('#stat-text .stat-value').textContent = stats.text;
+            document.querySelector('#stat-choices .stat-value').textContent = avgChoices;
+            document.querySelector('#stat-warnings .stat-value').textContent = stats.warnings;
+            
+            // Update warning card styling
+            const warningCard = document.getElementById('stat-warnings');
+            warningCard.classList.remove('warning', 'error');
+            if (stats.warnings > 0) {
+                warningCard.classList.add('warning');
+            }
+        }
+        
+        function renderPreview(problems) {
+            const container = document.getElementById('previewContainer');
+            const countBadge = document.getElementById('previewCount');
+            const nav = document.getElementById('previewNav');
+            
+            countBadge.textContent = `${problems.length} Problem${problems.length !== 1 ? 's' : ''}`;
+            
+            if (problems.length === 0) {
+                container.innerHTML = `
+                    <div class="preview-empty">
+                        <div class="preview-empty-icon">📝</div>
+                        <div>No problems to preview</div>
+                    </div>
+                `;
+                nav.style.display = 'none';
+                return;
+            }
+            
+            nav.style.display = 'flex';
+            
+            if (showAllMode) {
+                renderAllProblems(problems);
+            } else {
+                renderSingleProblem(problems, currentPreviewIndex);
+            }
+            
+            updateNavInfo();
+        }
+        
+        function renderAllProblems(problems) {
+            const container = document.getElementById('previewContainer');
+            container.innerHTML = problems.map((p, i) => renderProblemHTML(p, i)).join('');
+        }
+        
+        function renderSingleProblem(problems, index) {
+            const container = document.getElementById('previewContainer');
+            container.innerHTML = renderProblemHTML(problems[index], index);
+        }
+        
+        function renderProblemHTML(problem, index) {
+            let typeClass = 'multiple-choice';
+            let typeName = 'Single Choice';
+            
+            if (problem.answerType === 'numerical') {
+                typeClass = 'numerical';
+                typeName = 'Numerical';
+            } else if (problem.answerType === 'text') {
+                typeClass = 'text';
+                typeName = 'Text Input';
+            } else if (!problem.isMultipleChoice) {
+                typeClass = 'checkbox';
+                typeName = 'Multi-Select';
+            }
+            
+            let choicesHTML = '';
+            
+            if (problem.answerType === 'numerical' || problem.answerType === 'text') {
+                choicesHTML = `
+                    <div class="preview-input-field">Enter your answer...</div>
+                    <div class="preview-answer-hint">✓ Correct answer: ${problem.answer}</div>
+                `;
+            } else {
+                const indicatorClass = problem.isMultipleChoice ? '' : 'checkbox';
+                choicesHTML = `
+                    <ul class="preview-choices">
+                        ${problem.choices.map((choice, i) => `
+                            <li class="preview-choice ${problem.correctIndices.includes(i) ? 'correct' : ''}">
+                                <div class="preview-choice-indicator ${indicatorClass}"></div>
+                                <span class="preview-choice-text">${choice}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                `;
+            }
+            
+            return `
+                <div class="preview-problem" data-index="${index}">
+                    <div class="preview-problem-header">
+                        <span class="preview-problem-title">${problem.title}</span>
+                        <span class="preview-problem-type ${typeClass}">${typeName}</span>
+                    </div>
+                    <div class="preview-question">${problem.question}</div>
+                    ${choicesHTML}
+                    <div class="preview-explanation">
+                        <div class="preview-explanation-label">Explanation</div>
+                        <div class="preview-explanation-text">${problem.explanation}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function updateNavInfo() {
+            const navInfo = document.getElementById('previewNavInfo');
+            if (showAllMode) {
+                navInfo.textContent = `Showing all ${currentProblems.length}`;
+            } else {
+                navInfo.textContent = `${currentPreviewIndex + 1} of ${currentProblems.length}`;
+            }
+        }
+        
+        function prevProblem() {
+            if (currentProblems.length === 0) return;
+            showAllMode = false;
+            currentPreviewIndex = (currentPreviewIndex - 1 + currentProblems.length) % currentProblems.length;
+            renderSingleProblem(currentProblems, currentPreviewIndex);
+            updateNavInfo();
+        }
+        
+        function nextProblem() {
+            if (currentProblems.length === 0) return;
+            showAllMode = false;
+            currentPreviewIndex = (currentPreviewIndex + 1) % currentProblems.length;
+            renderSingleProblem(currentProblems, currentPreviewIndex);
+            updateNavInfo();
+        }
+        
+        function showAllProblems() {
+            showAllMode = true;
+            renderAllProblems(currentProblems);
+            updateNavInfo();
+        }
+        
+        function togglePreview() {
+            previewEnabled = !previewEnabled;
+            const toggle = document.getElementById('previewToggle');
+            const grid = document.getElementById('mainGrid');
+            const panel = document.getElementById('previewPanel');
+            
+            toggle.classList.toggle('active', previewEnabled);
+            
+            if (previewEnabled) {
+                grid.classList.add('three-col');
+                panel.style.display = 'flex';
+            } else {
+                grid.classList.remove('three-col');
+                panel.style.display = 'none';
+            }
+        }
+        
+        function convertToOLX() {
+            const input = document.getElementById('input').value;
+            const output = document.getElementById('output');
+            
+            if (!input.trim()) {
+                showStatus('Please enter problem text to convert', 'error');
+                return;
+            }
+            
+            try {
+                const result = parseProblems(input);
+                const problems = result.problems;
+                
+                if (problems.length === 0) {
+                    showStatus('No problems found. Please check your input format.', 'error');
+                    return;
+                }
+                
+                currentProblems = problems;
+                currentPreviewIndex = 0;
+                showAllMode = true;
+                
+                const olx = generateOLX(problems);
+                output.textContent = olx;
+                
+                updateStatistics(problems);
+                
+                if (previewEnabled) {
+                    renderPreview(problems);
+                }
+                
+                const labelMsg = result.displayNameLabel ? ` (using label: "${result.displayNameLabel}")` : '';
+                showStatus(`Successfully converted ${problems.length} problem(s)${labelMsg}`, 'success');
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+        
+        function copyOutput() {
+            const output = document.getElementById('output');
+            const text = output.textContent;
+            
+            if (!text || text === 'OLX output will appear here...') {
+                showStatus('No output to copy', 'error');
+                return;
+            }
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showStatus('Copied to clipboard!', 'success');
+            }).catch(err => {
+                showStatus('Failed to copy', 'error');
+            });
+        }
+        
+        function downloadOutput() {
+            const output = document.getElementById('output');
+            const text = output.textContent;
+            
+            if (!text || text === 'OLX output will appear here...') {
+                showStatus('No output to download', 'error');
+                return;
+            }
+            
+            const blob = new Blob([text], { type: 'text/xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'problems.xml';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus('Downloaded problems.xml', 'success');
+        }
+        
+        function generateUUID() {
+            return 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'.replace(/x/g, function() {
+                return Math.floor(Math.random() * 16).toString(16);
+            });
+        }
+        
+        function generateSingleProblemXML(problem, index) {
+            const displayName = problem.title;
+            let xml = `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
+            
+            if (problem.answerType === 'numerical') {
+                xml += `  <numericalresponse answer="${escapeXml(problem.answer)}">\n`;
+                xml += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
+                xml += `    <textline/>\n`;
+                xml += `  </numericalresponse>\n`;
+            } else if (problem.answerType === 'text') {
+                xml += `  <stringresponse answer="${escapeXml(problem.answer)}" type="ci">\n`;
+                xml += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
+                xml += `    <textline size="40"/>\n`;
+                xml += `  </stringresponse>\n`;
+            } else if (problem.isMultipleChoice) {
+                xml += `  <multiplechoiceresponse>\n`;
+                xml += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
+                xml += `    <choicegroup type="MultipleChoice">\n`;
+                
+                for (let j = 0; j < problem.choices.length; j++) {
+                    const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
+                    xml += `      <choice correct="${correct}">${escapeXmlWithFormatting(problem.choices[j])}</choice>\n`;
+                }
+                
+                xml += `    </choicegroup>\n`;
+                xml += `  </multiplechoiceresponse>\n`;
+            } else {
+                xml += `  <choiceresponse>\n`;
+                xml += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
+                xml += `    <checkboxgroup>\n`;
+                
+                for (let j = 0; j < problem.choices.length; j++) {
+                    const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
+                    xml += `      <choice correct="${correct}">${escapeXmlWithFormatting(problem.choices[j])}</choice>\n`;
+                }
+                
+                xml += `    </checkboxgroup>\n`;
+                xml += `  </choiceresponse>\n`;
+            }
+            
+            xml += `  <solution>\n`;
+            xml += `    <div class="detailed-solution">\n`;
+            xml += `      <p>Explanation</p>\n`;
+            xml += `      <p>${escapeXmlWithFormatting(problem.explanation)}</p>\n`;
+            xml += `    </div>\n`;
+            xml += `  </solution>\n`;
+            xml += `</problem>`;
+            
+            return xml;
+        }
+        
+        async function downloadLibrary() {
+            if (currentProblems.length === 0) {
+                showStatus('No problems to export. Convert problems first.', 'error');
+                return;
+            }
+            
+            try {
+                const input = document.getElementById('input').value;
+                const result = parseProblems(input);
+                
+                const problemXMLs = currentProblems.map((problem, index) => {
+                    const problemId = `problem_${generateUUID()}`;
+                    return {
+                        id: problemId,
+                        filename: `${problemId}.xml`,
+                        content: generateSingleProblemXML(problem, index)
+                    };
+                });
+                
+                let libraryXML = `<library display_name="${escapeXml(result.libraryName)}">\n`;
+                for (const pf of problemXMLs) {
+                    libraryXML += `  <problem url_name="${pf.id}"/>\n`;
+                }
+                libraryXML += `</library>`;
+                
+                result.output = {
+                    libraryXML: libraryXML,
+                    problemFiles: problemXMLs,
+                    assetsJSON: '{}'
+                };
+                
+                const zip = new JSZip();
+                const safeLibraryId = result.libraryId.replace(/[^a-zA-Z0-9_-]/g, '_');
+                const library = zip.folder(safeLibraryId);
+                const problemFolder = library.folder('problem');
+                const policiesFolder = library.folder('policies');
+                
+                for (const pf of problemXMLs) {
+                    problemFolder.file(pf.filename, pf.content);
+                }
+                
+                library.file('library.xml', libraryXML);
+                policiesFolder.file('assets.json', '{}');
+                
+                const content = await zip.generateAsync({ 
+                    type: 'blob',
+                    compression: "DEFLATE",
+                    compressionOptions: { level: 9 }
+                });
+                
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${safeLibraryId}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showStatus(`Downloaded ${safeLibraryId}.zip with ${currentProblems.length} problems`, 'success');
+            } catch (error) {
+                showStatus(`Error creating library: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+        
+        function clearAll() {
+            document.getElementById('input').value = '';
+            document.getElementById('output').textContent = 'OLX output will appear here...';
+            document.getElementById('status').style.display = 'none';
+            currentProblems = [];
+            currentPreviewIndex = 0;
+            
+            // Reset statistics
+            document.querySelectorAll('.stat-value').forEach(el => el.textContent = '0');
+            document.getElementById('stat-warnings').classList.remove('warning', 'error');
+            
+            // Reset preview
+            renderPreview([]);
+        }
+        
+        function loadSample() {
+            const sample = `Module 3 - Assignment 1 - Part 1 - Question 1: UAI0_A01_P01_Q01
+
+Label: Part 1 Question 1
+
+Original: What type of data is best visualized with a bar chart?
+Continuous time series data
+Relationships between variables
+Discrete categorical comparisons (correct)
+Cumulative totals
+
+Explanation: Bar charts are ideal for comparing discrete categories side by side, making it easy to see differences between groups.
+
+1. Which of the following are data visualization tools? (Select all that apply)
+Tableau (correct)
+Microsoft Word
+Python matplotlib (correct)
+Adobe Photoshop
+Power BI (correct)
+
+Explanation: Tableau, matplotlib, and Power BI are all specialized data visualization tools designed for creating charts and graphs.
+
+2. Which scenario is best suited for a bar chart?
+Comparing sales across product categories (correct)
+Tracking stock prices throughout the day
+Examining the relationship between two numerical variables
+Plotting a sine wave
+
+Explanation: Product categories represent distinct groups that can be effectively compared using bars of different heights.
+
+3. What is 2 + 2?
+Answer: 4
+
+Explanation: Basic arithmetic shows that two plus two equals four.`;
+            
+            document.getElementById('input').value = sample;
+            showStatus('Sample data loaded - click Convert to see preview', 'success');
+        }
+        
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (file.name.endsWith('.docx')) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    const arrayBuffer = e.target.result;
+                    
+                    mammoth.convertToHtml({arrayBuffer: arrayBuffer}, {
+                        styleMap: [
+                            "p[style-name='Heading 1'] => h1:fresh",
+                            "p[style-name='Heading 2'] => h2:fresh",
+                            "b => strong",
+                            "i => em",
+                            "u => u"
+                        ]
+                    })
+                        .then(function(result) {
+                            const html = result.value;
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = html;
+                            
+                            let text = '';
+                            const processNode = (node) => {
+                                if (node.nodeType === Node.TEXT_NODE) {
+                                    return node.textContent;
+                                }
+                                
+                                if (node.nodeType === Node.ELEMENT_NODE) {
+                                    const tag = node.tagName.toLowerCase();
+                                    let content = '';
+                                    
+                                    for (let child of node.childNodes) {
+                                        content += processNode(child);
+                                    }
+                                    
+                                    switch(tag) {
+                                        case 'strong':
+                                        case 'b':
+                                            return `<strong>${content}</strong>`;
+                                        case 'em':
+                                        case 'i':
+                                            return `<em>${content}</em>`;
+                                        case 'u':
+                                            return `<u>${content}</u>`;
+                                        case 'sup':
+                                            return `<sup>${content}</sup>`;
+                                        case 'sub':
+                                            return `<sub>${content}</sub>`;
+                                        case 'code':
+                                            return `<code>${content}</code>`;
+                                        case 'p':
+                                        case 'li':
+                                            return content + '\n';
+                                        case 'br':
+                                            return '\n';
+                                        default:
+                                            return content;
+                                    }
+                                }
+                                return '';
+                            };
+                            
+                            const paragraphs = tempDiv.querySelectorAll('p, li');
+                            if (paragraphs.length > 0) {
+                                paragraphs.forEach(p => {
+                                    const processed = processNode(p);
+                                    if (processed.trim()) {
+                                        text += processed;
+                                    }
+                                });
+                            } else {
+                                text = processNode(tempDiv);
+                            }
+                            
+                            document.getElementById('input').value = text;
+                            showStatus(`Loaded ${file.name} (converted from Word with formatting)`, 'success');
+                        })
+                        .catch(function(err) {
+                            console.error('Error reading Word document:', err);
+                            showStatus('Error reading Word document', 'error');
+                        });
+                };
+                
+                reader.onerror = function() {
+                    showStatus('Error reading file', 'error');
+                };
+                
+                reader.readAsArrayBuffer(file);
+            } else {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    document.getElementById('input').value = text;
+                    showStatus(`Loaded ${file.name}`, 'success');
+                };
+                
+                reader.onerror = function() {
+                    showStatus('Error reading file', 'error');
+                };
+                
+                reader.readAsText(file);
+            }
+        }
+        
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
