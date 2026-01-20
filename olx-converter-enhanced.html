@@ -1222,7 +1222,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     olx += `<problem display_name="${escapeXml(displayName)}" markdown="null">\n`;
                     olx += `  <multiplechoiceresponse>\n`;
                     olx += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
-                    olx += `    <choicegroup type="MultipleChoice">\n`;
+                    olx += `    <choicegroup type="MultipleChoice" shuffle="true">\n`;
                     
                     for (let j = 0; j < problem.choices.length; j++) {
                         const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
@@ -1557,7 +1557,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             } else if (problem.isMultipleChoice) {
                 xml += `  <multiplechoiceresponse>\n`;
                 xml += `    <label>${escapeXmlWithFormatting(problem.question)}</label>\n`;
-                xml += `    <choicegroup type="MultipleChoice">\n`;
+                xml += `    <choicegroup type="MultipleChoice" shuffle="true">\n`;
                 
                 for (let j = 0; j < problem.choices.length; j++) {
                     const correct = problem.correctIndices.includes(j) ? 'true' : 'false';
