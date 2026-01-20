@@ -1985,9 +1985,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
             const container = document.getElementById('previewContainer');
             const countBadge = document.getElementById('previewCount');
             const nav = document.getElementById('previewNav');
-            
+
+            if (!container || !countBadge || !nav) {
+                console.error('Preview elements not found in DOM');
+                return;
+            }
+
             countBadge.textContent = `${problems.length} Problem${problems.length !== 1 ? 's' : ''}`;
-            
+
             if (problems.length === 0) {
                 container.innerHTML = `
                     <div class="preview-empty">
@@ -1998,20 +2003,24 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 nav.style.display = 'none';
                 return;
             }
-            
+
             nav.style.display = 'flex';
-            
+
             if (showAllMode) {
                 renderAllProblems(problems);
             } else {
                 renderSingleProblem(problems, currentPreviewIndex);
             }
-            
+
             updateNavInfo();
         }
         
         function renderAllProblems(problems) {
             const container = document.getElementById('previewContainer');
+            if (!container) {
+                console.error('Preview container not found');
+                return;
+            }
             container.innerHTML = problems.map((p, i) => renderProblemHTML(p, i)).join('');
             attachEditListeners();
 
@@ -2025,6 +2034,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
         function renderSingleProblem(problems, index) {
             const container = document.getElementById('previewContainer');
+            if (!container) {
+                console.error('Preview container not found');
+                return;
+            }
             if (!problems[index]) {
                 container.innerHTML = '<div class="preview-empty"><div>Problem not found</div></div>';
                 return;
@@ -2101,6 +2114,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
             if (editListenersInitialized) return;
 
             const container = document.getElementById('previewContainer');
+            if (!container) {
+                console.error('Preview container not found for event listeners');
+                return;
+            }
 
             // Use event delegation on the parent container
             container.addEventListener('input', function(e) {
@@ -2221,23 +2238,36 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function showCodeDialog() {
+            const codeContent = document.getElementById('codeContent');
+            const codeType = document.getElementById('codeType');
+            const codeLanguage = document.getElementById('codeLanguage');
+            const codeDialog = document.getElementById('codeDialog');
+
+            if (!codeContent || !codeType || !codeLanguage || !codeDialog) {
+                console.error('Code dialog elements not found');
+                return;
+            }
+
             // Save current selection
             const selection = window.getSelection();
             if (selection.rangeCount > 0) {
                 savedSelection = selection.getRangeAt(0).cloneRange();
                 const selectedText = selection.toString();
-                document.getElementById('codeContent').value = selectedText;
+                codeContent.value = selectedText;
             } else {
-                document.getElementById('codeContent').value = '';
+                codeContent.value = '';
             }
-            document.getElementById('codeType').value = 'inline';
-            document.getElementById('codeLanguage').value = '';
-            document.getElementById('codeDialog').classList.add('visible');
-            document.getElementById('codeContent').focus();
+            codeType.value = 'inline';
+            codeLanguage.value = '';
+            codeDialog.classList.add('visible');
+            codeContent.focus();
         }
-        
+
         function closeCodeDialog() {
-            document.getElementById('codeDialog').classList.remove('visible');
+            const codeDialog = document.getElementById('codeDialog');
+            if (codeDialog) {
+                codeDialog.classList.remove('visible');
+            }
             savedSelection = null;
         }
         
@@ -2290,30 +2320,50 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
 
         function showLatexDialog() {
+            const latexContent = document.getElementById('latexContent');
+            const latexType = document.getElementById('latexType');
+            const latexDialog = document.getElementById('latexDialog');
+
+            if (!latexContent || !latexType || !latexDialog) {
+                console.error('LaTeX dialog elements not found');
+                return;
+            }
+
             // Save current selection
             const selection = window.getSelection();
             if (selection.rangeCount > 0) {
                 savedSelection = selection.getRangeAt(0).cloneRange();
                 const selectedText = selection.toString();
-                document.getElementById('latexContent').value = selectedText;
+                latexContent.value = selectedText;
             } else {
-                document.getElementById('latexContent').value = '';
+                latexContent.value = '';
             }
-            document.getElementById('latexType').value = 'inline';
-            document.getElementById('latexDialog').classList.add('visible');
-            document.getElementById('latexContent').focus();
+            latexType.value = 'inline';
+            latexDialog.classList.add('visible');
+            latexContent.focus();
             updateLatexPreview();
         }
 
         function closeLatexDialog() {
-            document.getElementById('latexDialog').classList.remove('visible');
+            const latexDialog = document.getElementById('latexDialog');
+            if (latexDialog) {
+                latexDialog.classList.remove('visible');
+            }
             savedSelection = null;
         }
 
         function updateLatexPreview() {
-            const content = document.getElementById('latexContent').value;
-            const type = document.getElementById('latexType').value;
+            const contentEl = document.getElementById('latexContent');
+            const typeEl = document.getElementById('latexType');
             const preview = document.getElementById('latexPreview');
+
+            if (!contentEl || !typeEl || !preview) {
+                console.error('LaTeX preview elements not found');
+                return;
+            }
+
+            const content = contentEl.value;
+            const type = typeEl.value;
 
             if (!content) {
                 preview.innerHTML = '<em style="color: var(--text-muted);">Enter LaTeX code to see preview...</em>';
@@ -2385,12 +2435,21 @@ Explanation: Sales by category represents distinct groups."></textarea>
         // Chuck Norris Quote Functions
         async function showChuckNorrisQuote() {
             const dialog = document.getElementById('chuckNorrisDialog');
+            if (!dialog) {
+                console.error('Chuck Norris dialog not found');
+                return;
+            }
             dialog.classList.add('visible');
             await fetchNewChuckNorrisQuote();
         }
 
         async function fetchNewChuckNorrisQuote() {
             const quoteContent = document.getElementById('chuckNorrisQuoteContent');
+            if (!quoteContent) {
+                console.error('Chuck Norris quote content element not found');
+                return;
+            }
+
             quoteContent.innerHTML = '<span style="opacity: 0.5;">Loading...</span>';
 
             try {
@@ -2399,7 +2458,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     throw new Error('Failed to fetch quote');
                 }
                 const data = await response.json();
-                quoteContent.innerHTML = `<span>${escapeHtml(data.value)}</span>`;
+                if (data && data.value) {
+                    quoteContent.innerHTML = `<span>${escapeHtml(data.value)}</span>`;
+                } else {
+                    quoteContent.innerHTML = '<span style="color: #ff5555;">Invalid quote data received.</span>';
+                }
             } catch (error) {
                 quoteContent.innerHTML = '<span style="color: #ff5555;">Error loading quote. Please try again.</span>';
                 console.error('Chuck Norris API error:', error);
@@ -2407,7 +2470,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
 
         function closeChuckNorrisDialog() {
-            document.getElementById('chuckNorrisDialog').classList.remove('visible');
+            const dialog = document.getElementById('chuckNorrisDialog');
+            if (dialog) {
+                dialog.classList.remove('visible');
+            }
         }
 
         function insertLatex() {
@@ -2475,19 +2541,31 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
 
         function showLinkDialog() {
+            const linkText = document.getElementById('linkText');
+            const linkUrl = document.getElementById('linkUrl');
+            const linkDialog = document.getElementById('linkDialog');
+
+            if (!linkText || !linkUrl || !linkDialog) {
+                console.error('Link dialog elements not found');
+                return;
+            }
+
             // Save current selection
             const selection = window.getSelection();
             if (selection.rangeCount > 0) {
                 savedSelection = selection.getRangeAt(0).cloneRange();
-                document.getElementById('linkText').value = selection.toString();
+                linkText.value = selection.toString();
             }
-            document.getElementById('linkUrl').value = '';
-            document.getElementById('linkDialog').classList.add('visible');
-            document.getElementById('linkUrl').focus();
+            linkUrl.value = '';
+            linkDialog.classList.add('visible');
+            linkUrl.focus();
         }
-        
+
         function closeLinkDialog() {
-            document.getElementById('linkDialog').classList.remove('visible');
+            const linkDialog = document.getElementById('linkDialog');
+            if (linkDialog) {
+                linkDialog.classList.remove('visible');
+            }
             savedSelection = null;
         }
         
@@ -2542,12 +2620,21 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function updateOLXOutput() {
+            const output = document.getElementById('output');
+            if (!output) {
+                console.error('Output element not found');
+                return;
+            }
             const olx = generateOLX(currentProblems);
-            document.getElementById('output').textContent = olx;
+            output.textContent = olx;
         }
-        
+
         function updateNavInfo() {
             const navInfo = document.getElementById('previewNavInfo');
+            if (!navInfo) {
+                console.error('Preview nav info element not found');
+                return;
+            }
             if (showAllMode) {
                 navInfo.textContent = `Showing all ${currentProblems.length}`;
             } else {
@@ -2582,9 +2669,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
             const toggle = document.getElementById('previewToggle');
             const grid = document.getElementById('mainGrid');
             const panel = document.getElementById('previewPanel');
-            
+
+            if (!toggle || !grid || !panel) {
+                console.error('Preview toggle elements not found');
+                return;
+            }
+
             toggle.classList.toggle('active', previewEnabled);
-            
+
             if (previewEnabled) {
                 grid.classList.add('three-col');
                 panel.style.display = 'flex';
@@ -2968,84 +3060,113 @@ Explanation: Basic arithmetic shows that two plus two equals four.`;
         
         function showStatus(message, type) {
             const status = document.getElementById('status');
+            if (!status) {
+                console.error('Status element not found');
+                return;
+            }
             status.textContent = message;
             status.className = `status ${type}`;
             status.style.display = 'block';
-            
+
             setTimeout(() => {
                 status.style.display = 'none';
             }, 4000);
         }
         
         // Handle link dialog with Enter key
-        document.getElementById('linkUrl').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                insertLink();
-            } else if (e.key === 'Escape') {
-                closeLinkDialog();
-            }
-        });
-        
-        document.getElementById('linkText').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                insertLink();
-            } else if (e.key === 'Escape') {
-                closeLinkDialog();
-            }
-        });
-        
+        const linkUrl = document.getElementById('linkUrl');
+        if (linkUrl) {
+            linkUrl.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    insertLink();
+                } else if (e.key === 'Escape') {
+                    closeLinkDialog();
+                }
+            });
+        }
+
+        const linkText = document.getElementById('linkText');
+        if (linkText) {
+            linkText.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    insertLink();
+                } else if (e.key === 'Escape') {
+                    closeLinkDialog();
+                }
+            });
+        }
+
         // Close dialog when clicking overlay
-        document.getElementById('linkDialog').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeLinkDialog();
-            }
-        });
+        const linkDialog = document.getElementById('linkDialog');
+        if (linkDialog) {
+            linkDialog.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeLinkDialog();
+                }
+            });
+        }
         
         // Code dialog event listeners
-        document.getElementById('codeContent').addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeCodeDialog();
-            }
-            // Allow Tab for indentation in code
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                const start = this.selectionStart;
-                const end = this.selectionEnd;
-                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
-                this.selectionStart = this.selectionEnd = start + 4;
-            }
-        });
-        
-        document.getElementById('codeDialog').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeCodeDialog();
-            }
-        });
+        const codeContent = document.getElementById('codeContent');
+        if (codeContent) {
+            codeContent.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeCodeDialog();
+                }
+                // Allow Tab for indentation in code
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const start = this.selectionStart;
+                    const end = this.selectionEnd;
+                    this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                    this.selectionStart = this.selectionEnd = start + 4;
+                }
+            });
+        }
+
+        const codeDialog = document.getElementById('codeDialog');
+        if (codeDialog) {
+            codeDialog.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeCodeDialog();
+                }
+            });
+        }
 
         // LaTeX dialog event listeners
-        document.getElementById('latexContent').addEventListener('input', updateLatexPreview);
+        const latexContent = document.getElementById('latexContent');
+        const latexType = document.getElementById('latexType');
+        const latexDialog = document.getElementById('latexDialog');
 
-        document.getElementById('latexType').addEventListener('change', updateLatexPreview);
+        if (latexContent) {
+            latexContent.addEventListener('input', updateLatexPreview);
 
-        document.getElementById('latexContent').addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeLatexDialog();
-            }
-            // Allow Tab for indentation
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                const start = this.selectionStart;
-                const end = this.selectionEnd;
-                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
-                this.selectionStart = this.selectionEnd = start + 4;
-            }
-        });
+            latexContent.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeLatexDialog();
+                }
+                // Allow Tab for indentation
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const start = this.selectionStart;
+                    const end = this.selectionEnd;
+                    this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                    this.selectionStart = this.selectionEnd = start + 4;
+                }
+            });
+        }
 
-        document.getElementById('latexDialog').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeLatexDialog();
-            }
-        });
+        if (latexType) {
+            latexType.addEventListener('change', updateLatexPreview);
+        }
+
+        if (latexDialog) {
+            latexDialog.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeLatexDialog();
+                }
+            });
+        }
     </script>
 </body>
 </html>
