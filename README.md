@@ -17,6 +17,7 @@ A powerful, browser-based tool for converting educational problem sets into Open
 - Superscript and Subscript
 - Inline and block code
 - Hyperlinks with custom text
+- **LaTeX Equations** - Full MathJax support with live preview
 - All formatting preserved in OLX output
 
 ### Advanced Capabilities
@@ -120,6 +121,49 @@ Label: Week 1 Quiz
 
 The converter automatically extracts and processes formatting from Word documents.
 
+### LaTeX Equations
+
+The converter fully supports LaTeX mathematical expressions with live preview:
+
+**Inline Math** (within text):
+```
+What is the solution to \( x^2 + 5x + 6 = 0 \)?
+Alternatively: What is $E = mc^2$ in joules?
+```
+
+**Display Math** (centered, on its own line):
+```
+The quadratic formula is:
+\[ x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a} \]
+
+Or using dollar signs:
+$$ \int_0^1 x^2 dx = \frac{1}{3} $$
+```
+
+**Using the Equation Editor:**
+1. Click the ∑ button in the toolbar
+2. Select equation type (inline or display)
+3. Enter LaTeX code (preview updates live)
+4. Click "Insert Equation"
+
+**Common LaTeX Commands:**
+- Fractions: `\frac{a}{b}`
+- Square root: `\sqrt{x}`
+- Powers: `x^2` or `x^{2n}`
+- Subscripts: `x_i` or `x_{i,j}`
+- Greek letters: `\alpha, \beta, \gamma, \pi`
+- Summation: `\sum_{i=1}^n`
+- Integration: `\int_0^1`
+- Limits: `\lim_{x \to \infty}`
+
+**Features:**
+- ✅ Live preview with MathJax rendering
+- ✅ Syntax validation for balanced delimiters
+- ✅ Both inline and display modes
+- ✅ Multiple delimiter styles supported
+- ✅ Preserved in OLX output
+- ✅ Renders properly on Open edX platform
+
 ## 🎯 Step-by-Step Workflow
 
 1. **Input Problems**
@@ -155,6 +199,7 @@ The built-in statistics panel shows:
 - **Dependencies:**
   - JSZip v3.10.1 - ZIP file generation
   - Mammoth.js v1.6.0 - Word document parsing
+  - MathJax v3 - LaTeX equation rendering
   - Google Fonts - Typography
 
 ### Browser Support
@@ -230,7 +275,6 @@ The generated OLX follows Open edX standards:
 ## 🐛 Known Limitations
 
 - Maximum file size for uploads: ~50MB (browser dependent)
-- Complex mathematical equations require manual LaTeX formatting
 - Images must be added manually after export
 - No support for adaptive/conditional problems
 
@@ -238,7 +282,7 @@ The generated OLX follows Open edX standards:
 
 Contributions are welcome! Areas for improvement:
 
-- [ ] LaTeX equation editor integration
+- [x] LaTeX equation editor integration ✅ (Completed!)
 - [ ] Image upload support
 - [ ] Additional problem types (drag-and-drop, etc.)
 - [ ] Template system for custom formats
