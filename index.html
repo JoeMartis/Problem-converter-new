@@ -2333,21 +2333,34 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
 
         function validateLatexBalance(content) {
-            // Check for balanced delimiters
+            // Check for balanced delimiters (only check regular braces, brackets, parentheses)
+            // Note: \{, \}, \[, \], \(, \) are LaTeX escape sequences and shouldn't be counted
             const checks = [
-                { open: '\\{', close: '\\}' },
-                { open: '\\[', close: '\\]' },
-                { open: '\\(', close: '\\)' },
-                { open: '{', close: '}' },
-                { open: '[', close: ']' },
-                { open: '(', close: ')' }
+                { open: '{', close: '}', name: 'curly braces' },
+                { open: '[', close: ']', name: 'square brackets' },
+                { open: '(', close: ')', name: 'parentheses' }
             ];
 
-            for (const {open, close} of checks) {
-                const openCount = (content.match(new RegExp(open.replace(/\\/g, '\\\\'), 'g')) || []).length;
-                const closeCount = (content.match(new RegExp(close.replace(/\\/g, '\\\\'), 'g')) || []).length;
-                if (openCount !== closeCount) {
-                    return { valid: false, message: `Unbalanced ${open} and ${close}` };
+            for (const {open, close, name} of checks) {
+                // Count only non-escaped delimiters
+                // Use negative lookbehind to exclude \{, \[, \( etc.
+                try {
+                    const openRegex = new RegExp(`(?<!\\\\)\\${open}`, 'g');
+                    const closeRegex = new RegExp(`(?<!\\\\)\\${close}`, 'g');
+                    const openCount = (content.match(openRegex) || []).length;
+                    const closeCount = (content.match(closeRegex) || []).length;
+
+                    if (openCount !== closeCount) {
+                        return { valid: false, message: `Unbalanced ${name}: ${openCount} opening, ${closeCount} closing` };
+                    }
+                } catch (e) {
+                    // Fallback for browsers that don't support lookbehind
+                    const openCount = (content.match(new RegExp(`\\${open}`, 'g')) || []).length;
+                    const closeCount = (content.match(new RegExp(`\\${close}`, 'g')) || []).length;
+
+                    if (openCount !== closeCount) {
+                        return { valid: false, message: `Unbalanced ${name}` };
+                    }
                 }
             }
 
