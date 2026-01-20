@@ -1004,24 +1004,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
                 
+                // Skip blank lines - don't finalize on them to allow blank lines between choices
                 if (!line) {
-                    if (questionText && choices.length > 0) {
-                        problemCount++;
-                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                        problems.push({
-                            title: displayName,
-                            question: cleanText(questionText),
-                            choices: choices.map(c => cleanText(c.text)),
-                            correctIndices: correctIndices,
-                            isMultipleChoice: correctIndices.length <= 1,
-                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                        });
-                        questionText = '';
-                        choices = [];
-                        correctIndices = [];
-                        explanation = '';
-                        inChoices = false;
-                    }
                     continue;
                 }
                 
