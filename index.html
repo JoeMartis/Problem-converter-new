@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.1</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.2</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1708,8 +1708,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 }
                 
                 if (questionText && inChoices) {
-                    const isCorrect = line.toLowerCase().includes('(correct)') || 
-                                      line.toLowerCase().includes('(correct answer)') || 
+                    const isCorrect = line.toLowerCase().includes('(correct)') ||
+                                      line.toLowerCase().includes('(correct answer)') ||
                                       line.includes('**(correct');
                     const choiceText = line
                         .replace(/\*\*\(correct.*?\)\*\*/i, '')
@@ -1717,20 +1717,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         .replace(/\(correct\)/i, '')
                         .replace(/\\$/, '')
                         .trim();
-                    
+
                     if (choiceText) {
-                        const looksLikeExplanation = choiceText.length > 150 || 
-                            /^(this|the|a|an|because|since|as|it|bar|sales|survey|independent)/i.test(choiceText);
-                        
-                        if (looksLikeExplanation && choices.length >= 2 && !isCorrect) {
-                            inChoices = false;
-                            explanation = choiceText;
-                        } else {
-                            if (isCorrect) {
-                                correctIndices.push(choices.length);
-                            }
-                            choices.push({ text: choiceText, correct: isCorrect });
+                        if (isCorrect) {
+                            correctIndices.push(choices.length);
                         }
+                        choices.push({ text: choiceText, correct: isCorrect });
                     }
                 }
             }
