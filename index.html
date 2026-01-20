@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.2</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.3</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -2791,7 +2791,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     };
                 });
                 
-                let libraryXML = `<library display_name="${escapeXml(result.libraryName)}">\n`;
+                let libraryXML = `<library org="${escapeXml(result.libraryOrg)}" library="${escapeXml(result.libraryId)}" display_name="${escapeXml(result.libraryName)}">\n`;
                 for (const pf of problemXMLs) {
                     libraryXML += `  <problem url_name="${pf.id}"/>\n`;
                 }
