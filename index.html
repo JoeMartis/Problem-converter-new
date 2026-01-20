@@ -987,10 +987,230 @@
                 grid-template-columns: repeat(3, 1fr);
             }
         }
-        
+
+        /* Settings Button */
+        .settings-button {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+        }
+
+        .settings-button:hover {
+            border-color: var(--accent-primary);
+            transform: rotate(90deg);
+        }
+
+        /* Settings Panel */
+        .settings-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            max-width: 90vw;
+            height: 100vh;
+            background: var(--bg-secondary);
+            border-left: 2px solid var(--border);
+            padding: 24px;
+            overflow-y: auto;
+            transition: right 0.3s ease;
+            z-index: 2000;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .settings-panel.visible {
+            right: 0;
+        }
+
+        .settings-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .settings-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .settings-header h2 {
+            color: var(--accent-primary);
+            font-size: 1.5rem;
+        }
+
+        .settings-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.8rem;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .settings-close:hover {
+            color: var(--accent-primary);
+            transform: rotate(90deg);
+        }
+
+        .settings-group {
+            margin-bottom: 28px;
+        }
+
+        .settings-group h3 {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+        }
+
+        .settings-control {
+            margin-bottom: 16px;
+        }
+
+        .settings-control label {
+            display: block;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+
+        .settings-control select,
+        .settings-control input[type="color"] {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-primary);
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: 'Crimson Pro', serif;
+            font-size: 0.95rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .settings-control select:focus,
+        .settings-control input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .settings-control input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-primary);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .settings-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--accent-primary);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .settings-control input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .settings-control input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: var(--accent-primary);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .range-value {
+            display: inline-block;
+            margin-left: 12px;
+            color: var(--accent-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+        }
+
+        .color-presets {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .color-preset {
+            width: 100%;
+            height: 40px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 2px solid var(--border);
+            transition: all 0.2s ease;
+        }
+
+        .color-preset:hover {
+            border-color: var(--accent-primary);
+            transform: scale(1.05);
+        }
+
+        .color-preset.active {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 2px var(--bg-secondary), 0 0 0 4px var(--accent-primary);
+        }
+
+        .settings-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 2px solid var(--border);
+        }
+
+        .settings-actions button {
+            flex: 1;
+        }
+
         @media (max-width: 500px) {
             .stats-dashboard {
                 grid-template-columns: repeat(2, 1fr);
+            }
+
+            .settings-button {
+                top: -10px;
+                right: -10px;
             }
         }
     </style>
@@ -998,6 +1218,7 @@
 <body>
     <div class="container">
         <header>
+            <button class="settings-button" onclick="toggleSettings()" title="Settings">⚙️</button>
             <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.0</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
@@ -1234,6 +1455,68 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 <button class="secondary" onclick="closeChuckNorrisDialog()"><span>Close</span></button>
                 <button onclick="fetchNewChuckNorrisQuote()"><span>Another Quote</span></button>
             </div>
+        </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div class="settings-overlay" id="settingsOverlay" onclick="toggleSettings()"></div>
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-header">
+            <h2>⚙️ Settings</h2>
+            <button class="settings-close" onclick="toggleSettings()">×</button>
+        </div>
+
+        <div class="settings-group">
+            <h3>🎨 Appearance</h3>
+
+            <div class="settings-control">
+                <label for="bgColorPicker">Background Color</label>
+                <input type="color" id="bgColorPicker" value="#0f1419" oninput="updateBackgroundColor(this.value)">
+                <div class="color-presets">
+                    <div class="color-preset active" style="background: #0f1419;" onclick="applyColorPreset('#0f1419', '#1a2332', '#253447')" title="Dark Blue (Default)"></div>
+                    <div class="color-preset" style="background: #0a0e1a;" onclick="applyColorPreset('#0a0e1a', '#151a28', '#1f2937')" title="Midnight"></div>
+                    <div class="color-preset" style="background: #1a1a1a;" onclick="applyColorPreset('#1a1a1a', '#252525', '#303030')" title="Dark Gray"></div>
+                    <div class="color-preset" style="background: #0d1b2a;" onclick="applyColorPreset('#0d1b2a', '#1b263b', '#415a77')" title="Ocean Night"></div>
+                    <div class="color-preset" style="background: #1c1c1c;" onclick="applyColorPreset('#1c1c1c', '#2a2a2a', '#383838')" title="Charcoal"></div>
+                    <div class="color-preset" style="background: #1a0f1f;" onclick="applyColorPreset('#1a0f1f', '#2a1f2f', '#3a2f3f')" title="Deep Purple"></div>
+                    <div class="color-preset" style="background: #0f1a0f;" onclick="applyColorPreset('#0f1a0f', '#1a2a1a', '#2a3a2a')" title="Forest Night"></div>
+                    <div class="color-preset" style="background: #1a0f0f;" onclick="applyColorPreset('#1a0f0f', '#2a1f1f', '#3a2f2f')" title="Dark Red"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <h3>📝 Typography</h3>
+
+            <div class="settings-control">
+                <label for="fontFamily">Font Family</label>
+                <select id="fontFamily" onchange="updateFontFamily(this.value)">
+                    <option value="'Crimson Pro', serif">Crimson Pro (Default)</option>
+                    <option value="'Georgia', serif">Georgia</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="'Arial', sans-serif">Arial</option>
+                    <option value="'Helvetica', sans-serif">Helvetica</option>
+                    <option value="'Verdana', sans-serif">Verdana</option>
+                    <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                    <option value="'Inter', sans-serif">Inter</option>
+                    <option value="'Roboto', sans-serif">Roboto</option>
+                    <option value="'Open Sans', sans-serif">Open Sans</option>
+                    <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
+                    <option value="'Courier New', monospace">Courier New</option>
+                </select>
+            </div>
+
+            <div class="settings-control">
+                <label for="fontSize">
+                    Font Size
+                    <span class="range-value" id="fontSizeValue">16px</span>
+                </label>
+                <input type="range" id="fontSize" min="12" max="24" value="16" step="1" oninput="updateFontSize(this.value)">
+            </div>
+        </div>
+
+        <div class="settings-actions">
+            <button class="secondary" onclick="resetSettings()"><span>Reset to Default</span></button>
         </div>
     </div>
 
@@ -2409,6 +2692,152 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function closeChuckNorrisDialog() {
             document.getElementById('chuckNorrisDialog').classList.remove('visible');
         }
+
+        // Settings Functions
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            const overlay = document.getElementById('settingsOverlay');
+            const isVisible = panel.classList.contains('visible');
+
+            if (isVisible) {
+                panel.classList.remove('visible');
+                overlay.classList.remove('visible');
+            } else {
+                panel.classList.add('visible');
+                overlay.classList.add('visible');
+            }
+        }
+
+        function updateBackgroundColor(color) {
+            document.documentElement.style.setProperty('--bg-primary', color);
+
+            // Calculate lighter shades for secondary and tertiary
+            const rgb = hexToRgb(color);
+            const secondary = rgbToHex(
+                Math.min(255, rgb.r + 25),
+                Math.min(255, rgb.g + 25),
+                Math.min(255, rgb.b + 25)
+            );
+            const tertiary = rgbToHex(
+                Math.min(255, rgb.r + 50),
+                Math.min(255, rgb.g + 50),
+                Math.min(255, rgb.b + 50)
+            );
+
+            document.documentElement.style.setProperty('--bg-secondary', secondary);
+            document.documentElement.style.setProperty('--bg-tertiary', tertiary);
+
+            saveSettings();
+
+            // Remove active class from all presets
+            document.querySelectorAll('.color-preset').forEach(p => p.classList.remove('active'));
+        }
+
+        function applyColorPreset(primary, secondary, tertiary) {
+            document.documentElement.style.setProperty('--bg-primary', primary);
+            document.documentElement.style.setProperty('--bg-secondary', secondary);
+            document.documentElement.style.setProperty('--bg-tertiary', tertiary);
+            document.getElementById('bgColorPicker').value = primary;
+
+            saveSettings();
+
+            // Update active preset
+            document.querySelectorAll('.color-preset').forEach(p => p.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        function updateFontFamily(font) {
+            document.body.style.fontFamily = font;
+            saveSettings();
+        }
+
+        function updateFontSize(size) {
+            document.body.style.fontSize = size + 'px';
+            document.getElementById('fontSizeValue').textContent = size + 'px';
+            saveSettings();
+        }
+
+        function saveSettings() {
+            const settings = {
+                bgPrimary: getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim(),
+                bgSecondary: getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim(),
+                bgTertiary: getComputedStyle(document.documentElement).getPropertyValue('--bg-tertiary').trim(),
+                fontFamily: document.body.style.fontFamily || "'Crimson Pro', serif",
+                fontSize: document.body.style.fontSize || '16px'
+            };
+            localStorage.setItem('olx-converter-settings', JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            const saved = localStorage.getItem('olx-converter-settings');
+            if (saved) {
+                try {
+                    const settings = JSON.parse(saved);
+
+                    if (settings.bgPrimary) {
+                        document.documentElement.style.setProperty('--bg-primary', settings.bgPrimary);
+                        document.getElementById('bgColorPicker').value = settings.bgPrimary;
+                    }
+                    if (settings.bgSecondary) {
+                        document.documentElement.style.setProperty('--bg-secondary', settings.bgSecondary);
+                    }
+                    if (settings.bgTertiary) {
+                        document.documentElement.style.setProperty('--bg-tertiary', settings.bgTertiary);
+                    }
+                    if (settings.fontFamily) {
+                        document.body.style.fontFamily = settings.fontFamily;
+                        document.getElementById('fontFamily').value = settings.fontFamily;
+                    }
+                    if (settings.fontSize) {
+                        document.body.style.fontSize = settings.fontSize;
+                        const sizeValue = parseInt(settings.fontSize);
+                        document.getElementById('fontSize').value = sizeValue;
+                        document.getElementById('fontSizeValue').textContent = settings.fontSize;
+                    }
+                } catch (e) {
+                    console.error('Error loading settings:', e);
+                }
+            }
+        }
+
+        function resetSettings() {
+            // Reset to defaults
+            document.documentElement.style.setProperty('--bg-primary', '#0f1419');
+            document.documentElement.style.setProperty('--bg-secondary', '#1a2332');
+            document.documentElement.style.setProperty('--bg-tertiary', '#253447');
+            document.body.style.fontFamily = "'Crimson Pro', serif";
+            document.body.style.fontSize = '16px';
+
+            // Update UI
+            document.getElementById('bgColorPicker').value = '#0f1419';
+            document.getElementById('fontFamily').value = "'Crimson Pro', serif";
+            document.getElementById('fontSize').value = '16';
+            document.getElementById('fontSizeValue').textContent = '16px';
+
+            // Mark first preset as active
+            document.querySelectorAll('.color-preset').forEach((p, i) => {
+                p.classList.toggle('active', i === 0);
+            });
+
+            localStorage.removeItem('olx-converter-settings');
+        }
+
+        // Helper functions for color conversion
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 15, g: 20, b: 25 };
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        // Load settings on page load
+        window.addEventListener('DOMContentLoaded', loadSettings);
 
         function insertLatex() {
             const type = document.getElementById('latexType').value;
