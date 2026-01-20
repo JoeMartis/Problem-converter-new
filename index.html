@@ -7,6 +7,23 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Crimson+Pro:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+    <!-- MathJax Configuration -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['\\(', '\\)'], ['$', '$']],
+                displayMath: [['\\[', '\\]'], ['$$', '$$']],
+                processEscapes: true,
+                processEnvironments: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
     <style>
         :root {
             --bg-primary: #0f1419;
@@ -1088,6 +1105,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             <button class="editor-btn" onclick="removeLink()" title="Remove Link">✂</button>
                         </div>
                         <div class="editor-toolbar-group">
+                            <button class="editor-btn" onclick="showLatexDialog()" title="Insert LaTeX Equation">∑</button>
+                        </div>
+                        <div class="editor-toolbar-group">
                             <button class="editor-btn" onclick="formatText('removeFormat')" title="Clear Formatting">⊘</button>
                         </div>
                     </div>
@@ -1174,7 +1194,34 @@ Explanation: Sales by category represents distinct groups."></textarea>
             </div>
         </div>
     </div>
-    
+
+    <!-- LaTeX Dialog -->
+    <div class="link-dialog-overlay" id="latexDialog">
+        <div class="link-dialog">
+            <h3>Insert LaTeX Equation</h3>
+            <label for="latexType">Equation Type</label>
+            <select id="latexType">
+                <option value="inline">Inline: \( ... \)</option>
+                <option value="inline-dollar">Inline: $ ... $</option>
+                <option value="display">Display: \[ ... \]</option>
+                <option value="display-dollar">Display: $$ ... $$</option>
+            </select>
+            <label for="latexContent">LaTeX Code</label>
+            <textarea id="latexContent" rows="6" placeholder="e.g., x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}"></textarea>
+            <div style="margin-top: 10px; font-size: 0.9em; color: var(--text-muted);">
+                <strong>Preview:</strong>
+                <div id="latexPreview" style="margin-top: 8px; padding: 10px; background: var(--bg-tertiary); border-radius: 4px; min-height: 40px;"></div>
+            </div>
+            <div style="margin-top: 10px; font-size: 0.85em; color: var(--text-muted);">
+                <strong>Common symbols:</strong> \frac{a}{b}, \sqrt{x}, x^2, x_i, \sum, \int, \alpha, \beta, \gamma
+            </div>
+            <div class="link-dialog-buttons">
+                <button class="secondary" onclick="closeLatexDialog()"><span>Cancel</span></button>
+                <button onclick="insertLatex()"><span>Insert Equation</span></button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentProblems = [];
         let currentPreviewIndex = 0;
@@ -1208,6 +1255,25 @@ Explanation: Sales by category represents distinct groups."></textarea>
             let result = text;
             const tagPlaceholders = {};
             let placeholderIndex = 0;
+
+            // Protect LaTeX expressions (both inline and display)
+            // Inline: \( ... \) or $ ... $
+            // Display: \[ ... \] or $$ ... $$
+            const latexPatterns = [
+                { regex: /\\\[([\s\S]*?)\\\]/g, prefix: '\\[', suffix: '\\]' },
+                { regex: /\\\(([\s\S]*?)\\\)/g, prefix: '\\(', suffix: '\\)' },
+                { regex: /\$\$([\s\S]*?)\$\$/g, prefix: '$$', suffix: '$$' },
+                { regex: /\$([^\$\n]+?)\$/g, prefix: '$', suffix: '$' }
+            ];
+
+            latexPatterns.forEach(pattern => {
+                result = result.replace(pattern.regex, (match, content) => {
+                    const placeholder = `__LATEX_${placeholderIndex}__`;
+                    tagPlaceholders[placeholder] = pattern.prefix + content + pattern.suffix;
+                    placeholderIndex++;
+                    return placeholder;
+                });
+            });
 
             // Protect anchor tags with href
             const anchorRegex = /<a\s+href="([^"]+)"(?:\s+target="([^"]+)")?(?:\s+rel="([^"]+)")?[^>]*>(.*?)<\/a>/gi;
@@ -1256,7 +1322,24 @@ Explanation: Sales by category represents distinct groups."></textarea>
             let protected = text;
             const tagPlaceholders = {};
             let placeholderIndex = 0;
-            
+
+            // Protect LaTeX expressions (both inline and display)
+            const latexPatterns = [
+                { regex: /\\\[([\s\S]*?)\\\]/g, prefix: '\\[', suffix: '\\]' },
+                { regex: /\\\(([\s\S]*?)\\\)/g, prefix: '\\(', suffix: '\\)' },
+                { regex: /\$\$([\s\S]*?)\$\$/g, prefix: '$$', suffix: '$$' },
+                { regex: /\$([^\$\n]+?)\$/g, prefix: '$', suffix: '$' }
+            ];
+
+            latexPatterns.forEach(pattern => {
+                protected = protected.replace(pattern.regex, (match, content) => {
+                    const placeholder = `__LATEX_${placeholderIndex}__`;
+                    tagPlaceholders[placeholder] = pattern.prefix + content + pattern.suffix;
+                    placeholderIndex++;
+                    return placeholder;
+                });
+            });
+
             // Protect anchor tags with href and optional target
             const anchorRegex = /<a\s+href="([^"]+)"(?:\s+target="([^"]+)")?(?:\s+rel="([^"]+)")?[^>]*>(.*?)<\/a>/gi;
             protected = protected.replace(anchorRegex, (match, href, target, rel, content) => {
@@ -1916,8 +1999,15 @@ Explanation: Sales by category represents distinct groups."></textarea>
             const container = document.getElementById('previewContainer');
             container.innerHTML = problems.map((p, i) => renderProblemHTML(p, i)).join('');
             attachEditListeners();
+
+            // Re-render MathJax equations
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise([container]).catch((err) => {
+                    console.error('MathJax rendering error:', err);
+                });
+            }
         }
-        
+
         function renderSingleProblem(problems, index) {
             const container = document.getElementById('previewContainer');
             if (!problems[index]) {
@@ -1926,6 +2016,13 @@ Explanation: Sales by category represents distinct groups."></textarea>
             }
             container.innerHTML = renderProblemHTML(problems[index], index);
             attachEditListeners();
+
+            // Re-render MathJax equations
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise([container]).catch((err) => {
+                    console.error('MathJax rendering error:', err);
+                });
+            }
         }
         
         function renderProblemHTML(problem, index) {
@@ -2176,7 +2273,151 @@ Explanation: Sales by category represents distinct groups."></textarea>
             closeCodeDialog();
             updateAfterFormat();
         }
-        
+
+        function showLatexDialog() {
+            // Save current selection
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                savedSelection = selection.getRangeAt(0).cloneRange();
+                const selectedText = selection.toString();
+                document.getElementById('latexContent').value = selectedText;
+            } else {
+                document.getElementById('latexContent').value = '';
+            }
+            document.getElementById('latexType').value = 'inline';
+            document.getElementById('latexDialog').classList.add('visible');
+            document.getElementById('latexContent').focus();
+            updateLatexPreview();
+        }
+
+        function closeLatexDialog() {
+            document.getElementById('latexDialog').classList.remove('visible');
+            savedSelection = null;
+        }
+
+        function updateLatexPreview() {
+            const content = document.getElementById('latexContent').value;
+            const type = document.getElementById('latexType').value;
+            const preview = document.getElementById('latexPreview');
+
+            if (!content) {
+                preview.innerHTML = '<em style="color: var(--text-muted);">Enter LaTeX code to see preview...</em>';
+                return;
+            }
+
+            let formatted;
+            switch(type) {
+                case 'inline':
+                    formatted = `\\(${content}\\)`;
+                    break;
+                case 'inline-dollar':
+                    formatted = `$${content}$`;
+                    break;
+                case 'display':
+                    formatted = `\\[${content}\\]`;
+                    break;
+                case 'display-dollar':
+                    formatted = `$$${content}$$`;
+                    break;
+            }
+
+            preview.textContent = formatted;
+
+            // Trigger MathJax to render
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise([preview]).catch((err) => {
+                    preview.innerHTML = '<span style="color: #ff5555;">Error rendering LaTeX</span>';
+                    console.error('MathJax error:', err);
+                });
+            }
+        }
+
+        function validateLatexBalance(content) {
+            // Check for balanced delimiters
+            const checks = [
+                { open: '\\{', close: '\\}' },
+                { open: '\\[', close: '\\]' },
+                { open: '\\(', close: '\\)' },
+                { open: '{', close: '}' },
+                { open: '[', close: ']' },
+                { open: '(', close: ')' }
+            ];
+
+            for (const {open, close} of checks) {
+                const openCount = (content.match(new RegExp(open.replace(/\\/g, '\\\\'), 'g')) || []).length;
+                const closeCount = (content.match(new RegExp(close.replace(/\\/g, '\\\\'), 'g')) || []).length;
+                if (openCount !== closeCount) {
+                    return { valid: false, message: `Unbalanced ${open} and ${close}` };
+                }
+            }
+
+            return { valid: true };
+        }
+
+        function insertLatex() {
+            const type = document.getElementById('latexType').value;
+            const content = document.getElementById('latexContent').value;
+
+            if (!content) {
+                alert('Please enter LaTeX code');
+                return;
+            }
+
+            // Validate balanced delimiters
+            const validation = validateLatexBalance(content);
+            if (!validation.valid) {
+                alert(`LaTeX validation warning: ${validation.message}\nDo you want to insert anyway?`);
+                // Continue anyway - user might know what they're doing
+            }
+
+            let formatted;
+            switch(type) {
+                case 'inline':
+                    formatted = `\\(${content}\\)`;
+                    break;
+                case 'inline-dollar':
+                    formatted = `$${content}$`;
+                    break;
+                case 'display':
+                    formatted = `\\[${content}\\]`;
+                    break;
+                case 'display-dollar':
+                    formatted = `$$${content}$$`;
+                    break;
+            }
+
+            if (savedSelection) {
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(savedSelection);
+
+                const textNode = document.createTextNode(formatted);
+                savedSelection.deleteContents();
+                savedSelection.insertNode(textNode);
+
+                // Move cursor after the inserted text
+                savedSelection.setStartAfter(textNode);
+                savedSelection.setEndAfter(textNode);
+                selection.removeAllRanges();
+                selection.addRange(savedSelection);
+            }
+
+            closeLatexDialog();
+            updateAfterFormat();
+
+            // Re-render MathJax in the preview
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                setTimeout(() => {
+                    const previewContainer = document.getElementById('previewContainer');
+                    if (previewContainer) {
+                        window.MathJax.typesetPromise([previewContainer]).catch((err) => {
+                            console.error('MathJax rendering error:', err);
+                        });
+                    }
+                }, 100);
+            }
+        }
+
         function showLinkDialog() {
             // Save current selection
             const selection = window.getSelection();
@@ -2722,6 +2963,31 @@ Explanation: Basic arithmetic shows that two plus two equals four.`;
         document.getElementById('codeDialog').addEventListener('click', function(e) {
             if (e.target === this) {
                 closeCodeDialog();
+            }
+        });
+
+        // LaTeX dialog event listeners
+        document.getElementById('latexContent').addEventListener('input', updateLatexPreview);
+
+        document.getElementById('latexType').addEventListener('change', updateLatexPreview);
+
+        document.getElementById('latexContent').addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeLatexDialog();
+            }
+            // Allow Tab for indentation
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+
+        document.getElementById('latexDialog').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeLatexDialog();
             }
         });
     </script>
