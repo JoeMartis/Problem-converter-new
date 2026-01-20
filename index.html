@@ -1798,7 +1798,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         `<problem display_name="${escapeXml(displayName)}" markdown="null">`,
                         `  <multiplechoiceresponse>`,
                         `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
-                        `    <choicegroup type="MultipleChoice">`
+                        `    <choicegroup type="MultipleChoice" shuffle="true">`
                     );
 
                     const choices = problem.choices || [];
@@ -2733,7 +2733,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 parts.push(
                     `  <multiplechoiceresponse>`,
                     `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
-                    `    <choicegroup type="MultipleChoice">`
+                    `    <choicegroup type="MultipleChoice" shuffle="true">`
                 );
 
                 const choices = problem.choices || [];
