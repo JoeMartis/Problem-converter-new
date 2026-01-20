@@ -1066,22 +1066,27 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     }
                     
                     questionText = originalMatch[1];
-                    
+
+                    // Only continue reading if the question clearly needs completion (ends with comma, and, or, etc.)
                     if (!questionText.endsWith('?') && !questionText.match(/\(select all that apply\)$/i)) {
                         let j = i + 1;
-                        while (j < lines.length && lines[j].trim() && !lines[j].trim().includes('(correct)') && 
-                               !lines[j].trim().match(/^\d+\.\s+/) && !lines[j].trim().match(/^Part\s+\d+/i)) {
+                        while (j < lines.length && lines[j].trim() &&
+                               (questionText.endsWith(',') || questionText.endsWith('and') || questionText.endsWith('or'))) {
                             const nextLine = lines[j].trim();
+                            // Stop if this looks like a choice (check common patterns)
+                            if (nextLine.match(/^[A-Z]/) || nextLine.includes('(correct)') ||
+                                nextLine.match(/^\d+\.\s+/) || nextLine.match(/^Part\s+\d+/i)) {
+                                break;
+                            }
                             questionText += ' ' + nextLine;
+                            i = j;
                             if (nextLine.endsWith('?') || nextLine.match(/\(select all that apply\)$/i)) {
-                                i = j;
                                 break;
                             }
                             j++;
-                            i = j;
                         }
                     }
-                    
+
                     inChoices = true;
                     continue;
                 }
@@ -1105,22 +1110,27 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     }
                     
                     questionText = numberedQuestionMatch[1];
-                    
+
+                    // Only continue reading if the question clearly needs completion (ends with comma, and, or, etc.)
                     if (!questionText.endsWith('?') && !questionText.match(/\(select all that apply\)$/i)) {
                         let j = i + 1;
-                        while (j < lines.length && lines[j].trim() && !lines[j].trim().includes('(correct)') && 
-                               !lines[j].trim().match(/^\d+\.\s+/) && !lines[j].trim().match(/^Part\s+\d+/i)) {
+                        while (j < lines.length && lines[j].trim() &&
+                               (questionText.endsWith(',') || questionText.endsWith('and') || questionText.endsWith('or'))) {
                             const nextLine = lines[j].trim();
+                            // Stop if this looks like a choice (check common patterns)
+                            if (nextLine.match(/^[A-Z]/) || nextLine.includes('(correct)') ||
+                                nextLine.match(/^\d+\.\s+/) || nextLine.match(/^Part\s+\d+/i)) {
+                                break;
+                            }
                             questionText += ' ' + nextLine;
+                            i = j;
                             if (nextLine.endsWith('?') || nextLine.match(/\(select all that apply\)$/i)) {
-                                i = j;
                                 break;
                             }
                             j++;
-                            i = j;
                         }
                     }
-                    
+
                     inChoices = true;
                     continue;
                 }
