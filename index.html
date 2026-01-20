@@ -998,8 +998,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter</h1>
-            <p class="subtitle">Open edX • Multiple Choice • Problem Bank</p>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; opacity: 0.6; font-weight: 400;">v2.0</span></h1>
+            <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
         <!-- Statistics Dashboard -->
@@ -1201,10 +1201,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
             <h3>Insert LaTeX Equation</h3>
             <label for="latexType">Equation Type</label>
             <select id="latexType">
-                <option value="inline">Inline: \( ... \)</option>
-                <option value="inline-dollar">Inline: $ ... $</option>
-                <option value="display">Display: \[ ... \]</option>
-                <option value="display-dollar">Display: $$ ... $$</option>
+                <option value="inline">Inline \( \) - Parentheses</option>
+                <option value="inline-dollar">Inline $ $ - Dollar signs</option>
+                <option value="display">Display \[ \] - Brackets</option>
+                <option value="display-dollar">Display $$ $$ - Double dollar</option>
             </select>
             <label for="latexContent">LaTeX Code</label>
             <textarea id="latexContent" rows="6" placeholder="e.g., x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}"></textarea>
