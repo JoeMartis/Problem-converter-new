@@ -1638,8 +1638,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
                 
-                const selectAllPattern = /\(select all that apply\)$/i;
-                const isQuestion = (line.endsWith('?') || selectAllPattern.test(line)) && !line.toLowerCase().startsWith('explanation');
+                const selectAllPattern = /\(select all that apply\.?\)$/i;
+                const isQuestion = (line.endsWith('?') || line.includes('?') || selectAllPattern.test(line)) && !line.toLowerCase().startsWith('explanation');
                 
                 if (isQuestion) {
                     if (questionText && choices.length > 0) {
@@ -1727,6 +1727,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                                       line.toLowerCase().includes('(correct answer)') ||
                                       line.includes('**(correct');
                     const choiceText = line
+                        .replace(/^[A-Z]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes
                         .replace(/\*\*\(correct.*?\)\*\*/i, '')
                         .replace(/\(correct\s*answer\)/i, '')
                         .replace(/\(correct\)/i, '')
