@@ -1690,8 +1690,23 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     inChoices = false;
                     continue;
                 }
-                
-                if (line.toLowerCase().startsWith('explanation:') || 
+
+                // Handle "Correct: A, C" format
+                const correctMatch = line.match(/^Correct:\s*(.+)/i);
+                if (correctMatch && questionText && choices.length > 0) {
+                    const correctLetters = correctMatch[1].trim();
+                    // Parse letters (A, B, C, etc.) and convert to indices
+                    const letterMatches = correctLetters.match(/[A-Z]/gi);
+                    if (letterMatches) {
+                        correctIndices = letterMatches.map(letter => {
+                            return letter.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
+                        }).filter(index => index >= 0 && index < choices.length);
+                    }
+                    inChoices = false;
+                    continue;
+                }
+
+                if (line.toLowerCase().startsWith('explanation:') ||
                     line.toLowerCase().startsWith('explain:') ||
                     line.toLowerCase() === 'explanation') {
                     inChoices = false;
