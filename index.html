@@ -1748,16 +1748,51 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 libraryId: libraryId
             };
         }
-        
+
+        /**
+         * Determines the maximum number of attempts allowed based on problem type
+         * According to the Attempts Matrix:
+         * - Multiple Choice: 2 attempts
+         * - Numerical Input: 3 attempts
+         * - Standard Checkbox (≤5 correct): 3 attempts
+         * - Complex Checkbox (>5 correct): 4 attempts
+         */
+        function getMaxAttempts(problem) {
+            // Multiple Choice: 2 attempts
+            if (problem.isMultipleChoice) {
+                return 2;
+            }
+
+            // Numerical Input: 3 attempts
+            if (problem.answerType === 'numerical') {
+                return 3;
+            }
+
+            // Checkbox questions - check number of correct answers
+            if (!problem.isMultipleChoice && problem.correctIndices && problem.correctIndices.length > 0) {
+                const correctCount = problem.correctIndices.length;
+                // Complex Checkbox (>5 correct): 4 attempts
+                if (correctCount > 5) {
+                    return 4;
+                }
+                // Standard Checkbox (≤5 correct): 3 attempts
+                return 3;
+            }
+
+            // Default for text input and any other types: 3 attempts
+            return 3;
+        }
+
         function generateOLX(problems) {
             // Use array and join for better performance than string concatenation
             const olxParts = problems.map(problem => {
                 const displayName = problem.title;
+                const maxAttempts = getMaxAttempts(problem);
                 const parts = [];
 
                 if (problem.answerType === 'numerical') {
                     parts.push(
-                        `<problem display_name="${escapeXml(displayName)}" markdown="null">`,
+                        `<problem display_name="${escapeXml(displayName)}" max_attempts="${maxAttempts}" markdown="null">`,
                         `  <numericalresponse answer="${escapeXml(problem.answer || '')}">`,
                         `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
                         `    <textline/>`,
@@ -1772,7 +1807,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     );
                 } else if (problem.answerType === 'text') {
                     parts.push(
-                        `<problem display_name="${escapeXml(displayName)}" markdown="null">`,
+                        `<problem display_name="${escapeXml(displayName)}" max_attempts="${maxAttempts}" markdown="null">`,
                         `  <stringresponse answer="${escapeXml(problem.answer || '')}" type="ci">`,
                         `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
                         `    <textline size="40"/>`,
@@ -1787,7 +1822,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     );
                 } else if (problem.isMultipleChoice) {
                     parts.push(
-                        `<problem display_name="${escapeXml(displayName)}" markdown="null">`,
+                        `<problem display_name="${escapeXml(displayName)}" max_attempts="${maxAttempts}" markdown="null">`,
                         `  <multiplechoiceresponse>`,
                         `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
                         `    <choicegroup type="MultipleChoice" shuffle="true">`
@@ -1813,7 +1848,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     );
                 } else {
                     parts.push(
-                        `<problem display_name="${escapeXml(displayName)}" markdown="null">`,
+                        `<problem display_name="${escapeXml(displayName)}" max_attempts="${maxAttempts}" markdown="null">`,
                         `  <choiceresponse>`,
                         `    <label>${escapeXmlWithFormatting(problem.question)}</label>`,
                         `    <checkboxgroup>`
@@ -2705,7 +2740,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
         
         function generateSingleProblemXML(problem, index) {
             const displayName = problem.title;
-            const parts = [`<problem display_name="${escapeXml(displayName)}" markdown="null">`];
+            const maxAttempts = getMaxAttempts(problem);
+            const parts = [`<problem display_name="${escapeXml(displayName)}" max_attempts="${maxAttempts}" markdown="null">`];
 
             if (problem.answerType === 'numerical') {
                 parts.push(
