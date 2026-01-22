@@ -1265,8 +1265,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function escapeHtmlWithFormatting(text) {
             if (!text) return '';
 
-            // Only wrap math if text looks like a math expression (starts with operators)
-            if (text && text.length < 100 && /^(max|min|sum|prod|lim|inf|sup|arg)/i.test(text.trim())) {
+            // Wrap math for short text (like choices) - function decides internally what to wrap
+            if (text && text.length < 200) {
                 text = wrapMathExpressions(text);
             }
 
@@ -1338,8 +1338,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function escapeXmlWithFormatting(text) {
-            // Only wrap math if text looks like a math expression (starts with operators)
-            if (text && text.length < 100 && /^(max|min|sum|prod|lim|inf|sup|arg)/i.test(text.trim())) {
+            // Wrap math for short text (like choices) - function decides internally what to wrap
+            if (text && text.length < 200) {
                 text = wrapMathExpressions(text);
             }
 
