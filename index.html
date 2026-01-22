@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.6</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.7</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1470,7 +1470,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)\s*([a-zA-Z])\s*([a-z])=(\d+)\s*([a-zA-Z])(.*)$/i,
                     (match, op, var1, start1, end1, var2, start2, end2, rest) => {
                         // Process remaining variables in rest (e.g., "pjxjt" -> "p_{j}x_{jt}")
-                        let processedRest = rest.replace(/([a-z])([a-z]+)/gi, (m, base, subscript) => {
+                        // Limit subscript to 1-3 letters to avoid consuming multiple variables
+                        let processedRest = rest.replace(/([a-z])([a-z]{1,3})/gi, (m, base, subscript) => {
                             if (/^[a-z]+$/.test(subscript)) {
                                 return `${base}_{${subscript}}`;
                             }
@@ -1485,7 +1486,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)\s*([a-zA-Z])(.*)$/i,
                         (match, op, varName, start, end, rest) => {
                             // Process remaining variables in rest (e.g., "pt" -> "p_{t}")
-                            let processedRest = rest.replace(/([a-z])([a-z]+)/gi, (m, base, subscript) => {
+                            // Limit subscript to 1-3 letters to avoid consuming multiple variables
+                            let processedRest = rest.replace(/([a-z])([a-z]{1,3})/gi, (m, base, subscript) => {
                                 if (/^[a-z]+$/.test(subscript)) {
                                     return `${base}_{${subscript}}`;
                                 }
@@ -1497,9 +1499,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
                 // If still unchanged, just wrap individual variable patterns
                 if (formatted === text) {
-                    formatted = formatted.replace(/([a-z])([a-z]+|\d+)/gi, (match, base, subscript) => {
+                    // Limit subscript to 1-3 letters to avoid consuming multiple variables
+                    formatted = formatted.replace(/([a-z])([a-z]{1,3}|\d+)/gi, (match, base, subscript) => {
                         // Only if subscript looks like indices (j, t, jt, i, n, etc.) or numbers
-                        if (/^[a-z]+$/.test(subscript) || /^\d+$/.test(subscript)) {
+                        if (/^[a-z]{1,3}$/.test(subscript) || /^\d+$/.test(subscript)) {
                             return `${base}_{${subscript}}`;
                         }
                         return match;
