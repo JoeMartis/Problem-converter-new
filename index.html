@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.3</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.4</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1467,7 +1467,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
                 // Pattern 1: Double summation with max/min - capture everything after the indices
                 // Matches: maxj=1nt=1Tpjxjt -> \max_{j=1}^{n} \sum_{t=1}^{T} p_{j}x_{jt}
-                formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)\s*([A-Z])\s*([a-z])=(\d+)\s*([A-Z])(.*)$/i,
+                formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)\s*([a-zA-Z])\s*([a-z])=(\d+)\s*([a-zA-Z])(.*)$/i,
                     (match, op, var1, start1, end1, var2, start2, end2, rest) => {
                         // Process remaining variables in rest (e.g., "pjxjt" -> "p_{j}x_{jt}")
                         let processedRest = rest.replace(/([a-z])([a-z]+)/gi, (m, base, subscript) => {
@@ -1482,7 +1482,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 // Pattern 2: Single summation with max/min - capture everything after the index
                 // Matches: maxt=1Tpt -> \max_{t=1}^{T} p_{t}
                 if (formatted === text) { // Only if Pattern 1 didn't match
-                    formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)\s*([A-Z])(.*)$/i,
+                    formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)\s*([a-zA-Z])(.*)$/i,
                         (match, op, varName, start, end, rest) => {
                             // Process remaining variables in rest (e.g., "pt" -> "p_{t}")
                             let processedRest = rest.replace(/([a-z])([a-z]+)/gi, (m, base, subscript) => {
