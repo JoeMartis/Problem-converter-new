@@ -1265,8 +1265,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function escapeHtmlWithFormatting(text) {
             if (!text) return '';
 
-            // First, wrap mathematical expressions with LaTeX delimiters
-            text = wrapMathExpressions(text);
+            // Only wrap math if text looks like a math expression (starts with operators)
+            if (text && text.length < 100 && /^(max|min|sum|prod|lim|inf|sup|arg)/i.test(text.trim())) {
+                text = wrapMathExpressions(text);
+            }
 
             // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre'];
@@ -1336,8 +1338,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function escapeXmlWithFormatting(text) {
-            // First, wrap mathematical expressions with LaTeX delimiters
-            text = wrapMathExpressions(text);
+            // Only wrap math if text looks like a math expression (starts with operators)
+            if (text && text.length < 100 && /^(max|min|sum|prod|lim|inf|sup|arg)/i.test(text.trim())) {
+                text = wrapMathExpressions(text);
+            }
 
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre'];
             let protected = text;
@@ -1441,13 +1445,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function wrapMathExpressions(text) {
             if (!text) return '';
 
-            // Don't process if already has LaTeX delimiters
-            if (text.includes('\\(') || text.includes('\\[') || text.match(/\$[^\$]+\$/)) {
-                return text;
-            }
+            try {
+                // Don't process if already has LaTeX delimiters
+                if (text.includes('\\(') || text.includes('\\[') || text.match(/\$[^\$]+\$/)) {
+                    return text;
+                }
 
-            // Remove invisible function application character
-            text = text.replace(/⁡/g, '');
+                // Remove invisible function application character
+                text = text.replace(/⁡/g, '');
 
             // Check if this is a short mathematical expression (like a choice option)
             // If it starts with a math operator and is relatively short, wrap the whole thing
@@ -1525,6 +1530,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
             });
 
             return text;
+            } catch (error) {
+                console.error('Error in wrapMathExpressions:', error);
+                return text; // Return original text if there's an error
+            }
         }
 
         function cleanText(text) {
