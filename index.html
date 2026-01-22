@@ -1428,15 +1428,103 @@ Explanation: Sales by category represents distinct groups."></textarea>
             return protected;
         }
         
+        /**
+         * Detects and wraps mathematical expressions with LaTeX delimiters
+         * Handles cases where LaTeX notation is embedded in plain text
+         */
+        function wrapMathExpressions(text) {
+            if (!text) return '';
+
+            // Don't process if already has LaTeX delimiters
+            if (text.includes('\\(') || text.includes('\\[') || text.match(/\$[^\$]+\$/)) {
+                return text;
+            }
+
+            // Remove invisible function application character
+            text = text.replace(/⁡/g, '');
+
+            // Check if this is a short mathematical expression (like a choice option)
+            // If it starts with a math operator and is relatively short, wrap the whole thing
+            const isShortMathExpr = text.length < 100 &&
+                                    /^(max|min|sum|prod|lim|inf|sup|arg)/i.test(text) &&
+                                    !text.includes(' the ') && !text.includes(' is ') && !text.includes(' and ');
+
+            if (isShortMathExpr) {
+                // For expressions like "maxj=1nt=1Tpjxjt", try to format properly
+                // This is a heuristic approach for concatenated math expressions
+                let formatted = text;
+
+                // Try to detect patterns like "maxj=1nt=1Tpjxjt"
+                // Pattern 1: max/min followed by summation indices (e.g., j=1n -> _{j=1}^{n})
+                formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)([A-Z])([a-z])=(\d+)([A-Z])/i,
+                    (match, op, var1, start1, end1, var2, start2, end2) => {
+                        return `${op}_{${var1}=${start1}}^{${end1}} \\sum_{${var2}=${start2}}^{${end2}}`;
+                    });
+
+                // Pattern 2: Simple max with one index (e.g., maxt=1T)
+                formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)([A-Z])/i,
+                    (match, op, var, start, end) => {
+                        return `${op}_{${var}=${start}}^{${end}}`;
+                    });
+
+                // Wrap remaining variable patterns (e.g., pj, pt, xjt -> p_j, p_t, x_{jt})
+                formatted = formatted.replace(/([a-z])([a-z]+|\d+)/g, (match, base, subscript) => {
+                    // Only if subscript looks like indices (j, t, jt, i, n, etc.) or numbers
+                    if (/^[a-z]+$/.test(subscript) || /^\d+$/.test(subscript)) {
+                        return `${base}_{${subscript}}`;
+                    }
+                    return match;
+                });
+
+                return `\\(${formatted}\\)`;
+            }
+
+            // For longer text with embedded math (like explanations), wrap individual mathematical terms
+            // Pattern: single letter followed by subscript-like characters (j, t, jt, digits)
+            // Only match single letters commonly used as variables (not parts of words like "in", "it", "at")
+            text = text.replace(/\b([a-zα-ω])([ijknt]{1,3}|\d+)\b/gi, (match, base, subscript) => {
+                // Be selective: only wrap if it really looks like a math variable
+                // Common subscripts in optimization: i, j, k, t, n, and numbers
+                // Also check that this isn't part of a common English word
+                const fullMatch = match.toLowerCase();
+                const commonWords = ['it', 'in', 'at', 'an', 'if', 'pi', 'xi'];
+
+                if (commonWords.includes(fullMatch)) {
+                    return match; // Don't wrap common words
+                }
+
+                if (/^[ijknt]{1,3}$|^\d+$/.test(subscript)) {
+                    return `\\(${base}_{${subscript}}\\)`;
+                }
+                return match;
+            });
+
+            return text;
+        }
+
         function cleanText(text) {
             if (!text) return '';
-            return text
-                .replace(/\*\*/g, '')
-                .replace(/\[/g, '')
-                .replace(/\]/g, '')
+
+            // First, wrap mathematical expressions
+            text = wrapMathExpressions(text);
+
+            // Don't remove brackets if text contains LaTeX
+            const hasLatex = text.includes('\\(') || text.includes('\\[') || text.includes('$');
+
+            let cleaned = text.replace(/\*\*/g, '');
+
+            if (!hasLatex) {
+                cleaned = cleaned
+                    .replace(/\[/g, '')
+                    .replace(/\]/g, '');
+            }
+
+            cleaned = cleaned
                 .replace(/\{\.underline\}/g, '')
                 .replace(/\{\.mark\}/g, '')
                 .trim();
+
+            return cleaned;
         }
         
         function parseProblems(text) {
