@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.5</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.6</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1454,16 +1454,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 // Remove invisible function application character
                 text = text.replace(/⁡/g, '');
 
-            // Check if this is a short mathematical expression (like a choice option)
-            // If it starts with a math operator and is relatively short, wrap the whole thing
-            const isShortMathExpr = text.length < 100 &&
-                                    /^(max|min|sum|prod|lim|inf|sup|arg)/i.test(text) &&
-                                    !text.includes(' the ') && !text.includes(' is ') && !text.includes(' and ');
+                // Check if this is a short mathematical expression (like a choice option)
+                // If it starts with a math operator and is relatively short, wrap the whole thing
+                const isShortMathExpr = text.length < 100 &&
+                                        /^(max|min|sum|prod|lim|inf|sup|arg)/i.test(text) &&
+                                        !text.includes(' the ') && !text.includes(' is ') && !text.includes(' and ');
 
-            if (isShortMathExpr) {
-                // For expressions like "maxj=1nt=1Tpjxjt", try to format properly
-                // This is a heuristic approach for concatenated math expressions
-                let formatted = text;
+                if (isShortMathExpr) {
+                    // For expressions like "maxj=1nt=1Tpjxjt", try to format properly
+                    // This is a heuristic approach for concatenated math expressions
+                    let formatted = text;
 
                 // Pattern 1: Double summation with max/min - capture everything after the indices
                 // Matches: maxj=1nt=1Tpjxjt -> \max_{j=1}^{n} \sum_{t=1}^{T} p_{j}x_{jt}
@@ -1805,15 +1805,25 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
 
-                // Handle "Correct: A, C" format
+                // Handle "Correct: A, C" format (supports both Latin and Greek letters)
                 const correctMatch = line.match(/^Correct:\s*(.+)/i);
                 if (correctMatch && questionText && choices.length > 0) {
                     const correctLetters = correctMatch[1].trim();
                     // Parse letters (A, B, C, etc.) and convert to indices
-                    const letterMatches = correctLetters.match(/[A-Z]/gi);
+                    // Support both Latin (A-Z) and Greek (Α-Ω) letters
+                    const letterMatches = correctLetters.match(/[A-ZΑ-Ω]/gi);
                     if (letterMatches) {
                         correctIndices = letterMatches.map(letter => {
-                            return letter.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
+                            const upperLetter = letter.toUpperCase();
+                            // Check if it's a Greek letter
+                            const greekCode = upperLetter.charCodeAt(0);
+                            if (greekCode >= 0x0391 && greekCode <= 0x03A9) {
+                                // Greek letter: Α=0x0391 maps to index 0
+                                return greekCode - 0x0391;
+                            } else {
+                                // Latin letter: A=0x41 maps to index 0
+                                return upperLetter.charCodeAt(0) - 'A'.charCodeAt(0);
+                            }
                         }).filter(index => index >= 0 && index < choices.length);
                     }
                     inChoices = false;
