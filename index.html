@@ -1265,6 +1265,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function escapeHtmlWithFormatting(text) {
             if (!text) return '';
 
+            // First, wrap mathematical expressions with LaTeX delimiters
+            text = wrapMathExpressions(text);
+
             // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre'];
             let result = text;
@@ -1333,6 +1336,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function escapeXmlWithFormatting(text) {
+            // First, wrap mathematical expressions with LaTeX delimiters
+            text = wrapMathExpressions(text);
+
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre'];
             let protected = text;
             const tagPlaceholders = {};
@@ -1501,7 +1507,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             // For longer text with embedded math (like explanations), wrap individual mathematical terms
             // Pattern: single letter followed by subscript-like characters (j, t, jt, digits)
             // Only match single letters commonly used as variables (not parts of words like "in", "it", "at")
-            text = text.replace(/\b([a-zα-ω])([ijknt]{1,3}|\d+)\b/gi, (match, base, subscript) => {
+            text = text.replace(/\b([a-z])([ijknt]{1,3}|\d+)\b/gi, (match, base, subscript) => {
                 // Be selective: only wrap if it really looks like a math variable
                 // Common subscripts in optimization: i, j, k, t, n, and numbers
                 // Also check that this isn't part of a common English word
@@ -1524,21 +1530,13 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function cleanText(text) {
             if (!text) return '';
 
-            // First, wrap mathematical expressions
-            text = wrapMathExpressions(text);
+            // Don't wrap math here - it interferes with parsing
+            // Math wrapping will happen later in the pipeline
 
-            // Don't remove brackets if text contains LaTeX
-            const hasLatex = text.includes('\\(') || text.includes('\\[') || text.includes('$');
-
-            let cleaned = text.replace(/\*\*/g, '');
-
-            if (!hasLatex) {
-                cleaned = cleaned
-                    .replace(/\[/g, '')
-                    .replace(/\]/g, '');
-            }
-
-            cleaned = cleaned
+            let cleaned = text
+                .replace(/\*\*/g, '')
+                .replace(/\[/g, '')
+                .replace(/\]/g, '')
                 .replace(/\{\.underline\}/g, '')
                 .replace(/\{\.mark\}/g, '')
                 .trim();
