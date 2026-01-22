@@ -1454,27 +1454,46 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 // This is a heuristic approach for concatenated math expressions
                 let formatted = text;
 
-                // Try to detect patterns like "maxj=1nt=1Tpjxjt"
-                // Pattern 1: max/min followed by summation indices (e.g., j=1n -> _{j=1}^{n})
-                formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)([A-Z])([a-z])=(\d+)([A-Z])/i,
-                    (match, op, var1, start1, end1, var2, start2, end2) => {
-                        return `${op}_{${var1}=${start1}}^{${end1}} \\sum_{${var2}=${start2}}^{${end2}}`;
+                // Pattern 1: Double summation with max/min - capture everything after the indices
+                // Matches: maxj=1nt=1Tpjxjt -> \max_{j=1}^{n} \sum_{t=1}^{T} p_{j}x_{jt}
+                formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)\s*([A-Z])\s*([a-z])=(\d+)\s*([A-Z])(.*)$/i,
+                    (match, op, var1, start1, end1, var2, start2, end2, rest) => {
+                        // Process remaining variables in rest (e.g., "pjxjt" -> "p_{j}x_{jt}")
+                        let processedRest = rest.replace(/([a-z])([a-z]+)/gi, (m, base, subscript) => {
+                            if (/^[a-z]+$/.test(subscript)) {
+                                return `${base}_{${subscript}}`;
+                            }
+                            return m;
+                        });
+                        return `\\${op}_{${var1}=${start1}}^{${end1}} \\sum_{${var2}=${start2}}^{${end2}} ${processedRest}`.trim();
                     });
 
-                // Pattern 2: Simple max with one index (e.g., maxt=1T)
-                formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)([A-Z])/i,
-                    (match, op, var, start, end) => {
-                        return `${op}_{${var}=${start}}^{${end}}`;
-                    });
+                // Pattern 2: Single summation with max/min - capture everything after the index
+                // Matches: maxt=1Tpt -> \max_{t=1}^{T} p_{t}
+                if (formatted === text) { // Only if Pattern 1 didn't match
+                    formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)\s*([A-Z])(.*)$/i,
+                        (match, op, var, start, end, rest) => {
+                            // Process remaining variables in rest (e.g., "pt" -> "p_{t}")
+                            let processedRest = rest.replace(/([a-z])([a-z]+)/gi, (m, base, subscript) => {
+                                if (/^[a-z]+$/.test(subscript)) {
+                                    return `${base}_{${subscript}}`;
+                                }
+                                return m;
+                            });
+                            return `\\${op}_{${var}=${start}}^{${end}} ${processedRest}`.trim();
+                        });
+                }
 
-                // Wrap remaining variable patterns (e.g., pj, pt, xjt -> p_j, p_t, x_{jt})
-                formatted = formatted.replace(/([a-z])([a-z]+|\d+)/g, (match, base, subscript) => {
-                    // Only if subscript looks like indices (j, t, jt, i, n, etc.) or numbers
-                    if (/^[a-z]+$/.test(subscript) || /^\d+$/.test(subscript)) {
-                        return `${base}_{${subscript}}`;
-                    }
-                    return match;
-                });
+                // If still unchanged, just wrap individual variable patterns
+                if (formatted === text) {
+                    formatted = formatted.replace(/([a-z])([a-z]+|\d+)/gi, (match, base, subscript) => {
+                        // Only if subscript looks like indices (j, t, jt, i, n, etc.) or numbers
+                        if (/^[a-z]+$/.test(subscript) || /^\d+$/.test(subscript)) {
+                            return `${base}_{${subscript}}`;
+                        }
+                        return match;
+                    });
+                }
 
                 return `\\(${formatted}\\)`;
             }
