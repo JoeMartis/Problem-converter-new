@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.9</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.0</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1265,8 +1265,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function escapeHtmlWithFormatting(text) {
             if (!text) return '';
 
-            // Wrap math for short text (like choices) - function decides internally what to wrap
-            if (text && text.length < 200) {
+            // Wrap math expressions - function decides internally what to wrap based on content
+            if (text) {
                 text = wrapMathExpressions(text);
             }
 
@@ -1338,8 +1338,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function escapeXmlWithFormatting(text) {
-            // Wrap math for short text (like choices) - function decides internally what to wrap
-            if (text && text.length < 200) {
+            // Wrap math expressions - function decides internally what to wrap based on content
+            if (text) {
                 text = wrapMathExpressions(text);
             }
 
