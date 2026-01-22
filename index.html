@@ -1483,7 +1483,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 // Matches: maxt=1Tpt -> \max_{t=1}^{T} p_{t}
                 if (formatted === text) { // Only if Pattern 1 didn't match
                     formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)\s*([A-Z])(.*)$/i,
-                        (match, op, var, start, end, rest) => {
+                        (match, op, varName, start, end, rest) => {
                             // Process remaining variables in rest (e.g., "pt" -> "p_{t}")
                             let processedRest = rest.replace(/([a-z])([a-z]+)/gi, (m, base, subscript) => {
                                 if (/^[a-z]+$/.test(subscript)) {
@@ -1491,7 +1491,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                                 }
                                 return m;
                             });
-                            return `\\${op}_{${var}=${start}}^{${end}} ${processedRest}`.trim();
+                            return `\\${op}_{${varName}=${start}}^{${end}} ${processedRest}`.trim();
                         });
                 }
 
