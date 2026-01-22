@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.4</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.5</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1841,7 +1841,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                                       line.toLowerCase().includes('(correct answer)') ||
                                       line.includes('**(correct');
                     const choiceText = line
-                        .replace(/^[A-Z]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes
+                        .replace(/^[A-ZΑ-Ω]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes (including Greek letters)
                         .replace(/\*\*\(correct.*?\)\*\*/i, '')
                         .replace(/\(correct\s*answer\)/i, '')
                         .replace(/\(correct\)/i, '')
