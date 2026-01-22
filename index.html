@@ -2098,10 +2098,17 @@ Explanation: Sales by category represents distinct groups."></textarea>
             attachEditListeners();
 
             // Re-render MathJax equations
-            if (window.MathJax && window.MathJax.typesetPromise) {
-                window.MathJax.typesetPromise([container]).catch((err) => {
-                    console.error('MathJax rendering error:', err);
-                });
+            if (window.MathJax) {
+                // Clear MathJax cache for this container
+                if (window.MathJax.typesetClear) {
+                    window.MathJax.typesetClear([container]);
+                }
+                // Typeset the new content
+                if (window.MathJax.typesetPromise) {
+                    window.MathJax.typesetPromise([container]).catch((err) => {
+                        console.error('MathJax rendering error:', err);
+                    });
+                }
             }
         }
 
@@ -2119,10 +2126,17 @@ Explanation: Sales by category represents distinct groups."></textarea>
             attachEditListeners();
 
             // Re-render MathJax equations
-            if (window.MathJax && window.MathJax.typesetPromise) {
-                window.MathJax.typesetPromise([container]).catch((err) => {
-                    console.error('MathJax rendering error:', err);
-                });
+            if (window.MathJax) {
+                // Clear MathJax cache for this container
+                if (window.MathJax.typesetClear) {
+                    window.MathJax.typesetClear([container]);
+                }
+                // Typeset the new content
+                if (window.MathJax.typesetPromise) {
+                    window.MathJax.typesetPromise([container]).catch((err) => {
+                        console.error('MathJax rendering error:', err);
+                    });
+                }
             }
         }
         
@@ -2242,9 +2256,23 @@ Explanation: Sales by category represents distinct groups."></textarea>
             } else if (field === 'answer') {
                 currentProblems[problemIndex].answer = content;
             }
-            
+
             // Update OLX output
             updateOLXOutput();
+
+            // Re-render MathJax in the edited element
+            if (window.MathJax) {
+                // Clear MathJax cache for this element
+                if (window.MathJax.typesetClear) {
+                    window.MathJax.typesetClear([el]);
+                }
+                // Typeset the new content
+                if (window.MathJax.typesetPromise) {
+                    window.MathJax.typesetPromise([el]).catch((err) => {
+                        console.error('MathJax rendering error:', err);
+                    });
+                }
+            }
         }
         
         function handleFocus(e) {
