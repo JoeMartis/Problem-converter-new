@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.0</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.1</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1447,7 +1447,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             try {
                 // Don't process if already has LaTeX delimiters
-                if (text.includes('\\(') || text.includes('\\[') || text.match(/\$[^\$]+\$/)) {
+                if (text.includes('\\(') || text.includes('\\[') || text.includes('$$') || text.match(/\$[^\$]+\$/)) {
                     return text;
                 }
 
@@ -1622,12 +1622,24 @@ Explanation: Sales by category represents distinct groups."></textarea>
             let problemCount = 0;
             let inChoices = false;
             let currentLabel = '';
+            let currentChoiceText = '';
+            let currentChoiceCorrect = false;
             
             for (let i = startIndex; i < lines.length; i++) {
                 const line = lines[i].trim();
                 
                 const labelMatch = line.match(/^Label:\s*(.+)/i);
                 if (labelMatch) {
+                    // Save any accumulated choice
+                    if (currentChoiceText.trim()) {
+                        if (currentChoiceCorrect) {
+                            correctIndices.push(choices.length);
+                        }
+                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
+                        currentChoiceText = '';
+                        currentChoiceCorrect = false;
+                    }
+
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1651,6 +1663,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 const partQuestionMatch = line.match(/^Part\s+\d+\s+Question\s+\d+/i);
                 if (partQuestionMatch) {
+                    // Save any accumulated choice
+                    if (currentChoiceText.trim()) {
+                        if (currentChoiceCorrect) {
+                            correctIndices.push(choices.length);
+                        }
+                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
+                        currentChoiceText = '';
+                        currentChoiceCorrect = false;
+                    }
+
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1677,8 +1699,18 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
                 
-                if (line.match(/^Part\s+\d+\s+Question\s+\d+/i) || 
+                if (line.match(/^Part\s+\d+\s+Question\s+\d+/i) ||
                     line.match(/^\*\*Part\s+\d+\s+Question\s+\d+/i)) {
+                    // Save any accumulated choice
+                    if (currentChoiceText.trim()) {
+                        if (currentChoiceCorrect) {
+                            correctIndices.push(choices.length);
+                        }
+                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
+                        currentChoiceText = '';
+                        currentChoiceCorrect = false;
+                    }
+
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1701,6 +1733,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 const originalMatch = line.match(/^Original:\s*(.+)/i) || line.match(/^\*\*Original:\s*(.+)/i);
                 if (originalMatch) {
+                    // Save any accumulated choice
+                    if (currentChoiceText.trim()) {
+                        if (currentChoiceCorrect) {
+                            correctIndices.push(choices.length);
+                        }
+                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
+                        currentChoiceText = '';
+                        currentChoiceCorrect = false;
+                    }
+
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1716,7 +1758,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                     }
-                    
+
                     questionText = originalMatch[1];
                     inChoices = true;
                     continue;
@@ -1724,6 +1766,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 const numberedQuestionMatch = line.match(/^\d+\.\s+(.+)/);
                 if (numberedQuestionMatch) {
+                    // Save any accumulated choice
+                    if (currentChoiceText.trim()) {
+                        if (currentChoiceCorrect) {
+                            correctIndices.push(choices.length);
+                        }
+                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
+                        currentChoiceText = '';
+                        currentChoiceCorrect = false;
+                    }
+
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1739,7 +1791,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                     }
-                    
+
                     questionText = numberedQuestionMatch[1];
                     inChoices = true;
                     continue;
@@ -1749,6 +1801,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 const isQuestion = (line.endsWith('?') || line.includes('?') || selectAllPattern.test(line)) && !line.toLowerCase().startsWith('explanation');
                 
                 if (isQuestion) {
+                    // Save any accumulated choice
+                    if (currentChoiceText.trim()) {
+                        if (currentChoiceCorrect) {
+                            correctIndices.push(choices.length);
+                        }
+                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
+                        currentChoiceText = '';
+                        currentChoiceCorrect = false;
+                    }
+
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1764,7 +1826,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                     }
-                    
+
                     questionText = line;
                     inChoices = true;
                     continue;
@@ -1800,24 +1862,36 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
                 // Handle "Correct: A, C" format (supports both Latin and Greek letters)
                 const correctMatch = line.match(/^Correct:\s*(.+)/i);
-                if (correctMatch && questionText && choices.length > 0) {
-                    const correctLetters = correctMatch[1].trim();
-                    // Parse letters (A, B, C, etc.) and convert to indices
-                    // Support both Latin (A-Z) and Greek (Α-Ω) letters
-                    const letterMatches = correctLetters.match(/[A-ZΑ-Ω]/gi);
-                    if (letterMatches) {
-                        correctIndices = letterMatches.map(letter => {
-                            const upperLetter = letter.toUpperCase();
-                            // Check if it's a Greek letter
-                            const greekCode = upperLetter.charCodeAt(0);
-                            if (greekCode >= 0x0391 && greekCode <= 0x03A9) {
-                                // Greek letter: Α=0x0391 maps to index 0
-                                return greekCode - 0x0391;
-                            } else {
-                                // Latin letter: A=0x41 maps to index 0
-                                return upperLetter.charCodeAt(0) - 'A'.charCodeAt(0);
-                            }
-                        }).filter(index => index >= 0 && index < choices.length);
+                if (correctMatch && questionText) {
+                    // Save any accumulated choice before processing "Correct:"
+                    if (currentChoiceText.trim()) {
+                        if (currentChoiceCorrect) {
+                            correctIndices.push(choices.length);
+                        }
+                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
+                        currentChoiceText = '';
+                        currentChoiceCorrect = false;
+                    }
+
+                    if (choices.length > 0) {
+                        const correctLetters = correctMatch[1].trim();
+                        // Parse letters (A, B, C, etc.) and convert to indices
+                        // Support both Latin (A-Z) and Greek (Α-Ω) letters
+                        const letterMatches = correctLetters.match(/[A-ZΑ-Ω]/gi);
+                        if (letterMatches) {
+                            correctIndices = letterMatches.map(letter => {
+                                const upperLetter = letter.toUpperCase();
+                                // Check if it's a Greek letter
+                                const greekCode = upperLetter.charCodeAt(0);
+                                if (greekCode >= 0x0391 && greekCode <= 0x03A9) {
+                                    // Greek letter: Α=0x0391 maps to index 0
+                                    return greekCode - 0x0391;
+                                } else {
+                                    // Latin letter: A=0x41 maps to index 0
+                                    return upperLetter.charCodeAt(0) - 'A'.charCodeAt(0);
+                                }
+                            }).filter(index => index >= 0 && index < choices.length);
+                        }
                     }
                     inChoices = false;
                     continue;
@@ -1826,6 +1900,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 if (line.toLowerCase().startsWith('explanation:') ||
                     line.toLowerCase().startsWith('explain:') ||
                     line.toLowerCase() === 'explanation') {
+                    // Save any accumulated choice before processing "Explanation:"
+                    if (currentChoiceText.trim()) {
+                        if (currentChoiceCorrect) {
+                            correctIndices.push(choices.length);
+                        }
+                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
+                        currentChoiceText = '';
+                        currentChoiceCorrect = false;
+                    }
+
                     inChoices = false;
                     explanation = line.replace(/^explanation:\s*/i, '').replace(/^explain:\s*/i, '');
                     if (!explanation || explanation.toLowerCase() === 'explanation') {
@@ -1840,26 +1924,49 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 }
                 
                 if (questionText && inChoices) {
-                    const isCorrect = line.toLowerCase().includes('(correct)') ||
-                                      line.toLowerCase().includes('(correct answer)') ||
-                                      line.includes('**(correct');
-                    const choiceText = line
-                        .replace(/^[A-ZΑ-Ω]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes (including Greek letters)
-                        .replace(/\*\*\(correct.*?\)\*\*/i, '')
-                        .replace(/\(correct\s*answer\)/i, '')
-                        .replace(/\(correct\)/i, '')
-                        .replace(/\\$/, '')
-                        .trim();
+                    // Check if this line starts a new choice (A., B., C., etc.)
+                    const choicePrefixMatch = line.match(/^[A-ZΑ-Ω]\.\s*/i);
 
-                    if (choiceText) {
-                        if (isCorrect) {
-                            correctIndices.push(choices.length);
+                    if (choicePrefixMatch) {
+                        // Save any accumulated choice before starting new one
+                        if (currentChoiceText.trim()) {
+                            if (currentChoiceCorrect) {
+                                correctIndices.push(choices.length);
+                            }
+                            choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
                         }
-                        choices.push({ text: choiceText, correct: isCorrect });
+
+                        // Start new choice
+                        const isCorrect = line.toLowerCase().includes('(correct)') ||
+                                          line.toLowerCase().includes('(correct answer)') ||
+                                          line.includes('**(correct');
+                        currentChoiceCorrect = isCorrect;
+                        currentChoiceText = line
+                            .replace(/^[A-ZΑ-Ω]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes
+                            .replace(/\*\*\(correct.*?\)\*\*/i, '')
+                            .replace(/\(correct\s*answer\)/i, '')
+                            .replace(/\(correct\)/i, '')
+                            .replace(/\\$/, '')
+                            .trim();
+                    } else {
+                        // Continuation of current choice - accumulate with newline
+                        if (currentChoiceText) {
+                            currentChoiceText += '\n' + line;
+                        } else {
+                            currentChoiceText = line;
+                        }
                     }
                 }
             }
-            
+
+            // Save any accumulated choice at the end
+            if (currentChoiceText.trim()) {
+                if (currentChoiceCorrect) {
+                    correctIndices.push(choices.length);
+                }
+                choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
+            }
+
             if (questionText && choices.length > 0) {
                 problemCount++;
                 const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
