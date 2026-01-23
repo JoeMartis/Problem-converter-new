@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.1</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.3</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1265,11 +1265,6 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function escapeHtmlWithFormatting(text) {
             if (!text) return '';
 
-            // Wrap math expressions - function decides internally what to wrap based on content
-            if (text) {
-                text = wrapMathExpressions(text);
-            }
-
             // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre'];
             let result = text;
@@ -1338,11 +1333,6 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function escapeXmlWithFormatting(text) {
-            // Wrap math expressions - function decides internally what to wrap based on content
-            if (text) {
-                text = wrapMathExpressions(text);
-            }
-
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre'];
             let protected = text;
             const tagPlaceholders = {};
@@ -1438,112 +1428,15 @@ Explanation: Sales by category represents distinct groups."></textarea>
             return protected;
         }
         
-        /**
-         * Detects and wraps mathematical expressions with LaTeX delimiters
-         * Handles cases where LaTeX notation is embedded in plain text
-         */
-        function wrapMathExpressions(text) {
-            if (!text) return '';
-
-            try {
-                // Don't process if already has LaTeX delimiters
-                if (text.includes('\\(') || text.includes('\\[') || text.includes('$$') || text.match(/\$[^\$]+\$/)) {
-                    return text;
-                }
-
-                // Remove invisible function application character
-                text = text.replace(/⁡/g, '');
-
-                // Check if this is a short mathematical expression (like a choice option)
-                // If it starts with a math operator and is relatively short, wrap the whole thing
-                const isShortMathExpr = text.length < 100 &&
-                                        /^(max|min|sum|prod|lim|inf|sup|arg)/i.test(text) &&
-                                        !text.includes(' the ') && !text.includes(' is ') && !text.includes(' and ');
-
-                if (isShortMathExpr) {
-                    // For expressions like "maxj=1nt=1Tpjxjt", try to format properly
-                    // This is a heuristic approach for concatenated math expressions
-                    let formatted = text;
-
-                // Pattern 1: Double summation with max/min - capture everything after the indices
-                // Matches: maxj=1nt=1Tpjxjt -> \max \sum_{j=1}^{n} \sum_{t=1}^{T} p_{j}x_{jt}
-                formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)\s*([a-zA-Z])\s*([a-z])=(\d+)\s*([a-zA-Z])(.*)$/i,
-                    (match, op, var1, start1, end1, var2, start2, end2, rest) => {
-                        // Process remaining variables in rest (e.g., "pjxjt" -> "p_{j}x_{jt}")
-                        // Match variable + subscript where subscript contains only common index letters (i,j,k,t,n)
-                        let processedRest = rest.replace(/([a-z])([ijktn]{1,3})/gi, (m, base, subscript) => {
-                            return `${base}_{${subscript}}`;
-                        });
-                        return `\\${op} \\sum_{${var1}=${start1}}^{${end1}} \\sum_{${var2}=${start2}}^{${end2}} ${processedRest}`.trim();
-                    });
-
-                // Pattern 2: Single summation with max/min - capture everything after the index
-                // Matches: maxt=1Tpt -> \max \sum_{t=1}^{T} p_{t}
-                if (formatted === text) { // Only if Pattern 1 didn't match
-                    formatted = formatted.replace(/^(max|min)\s*([a-z])=(\d+)\s*([a-zA-Z])(.*)$/i,
-                        (match, op, varName, start, end, rest) => {
-                            // Process remaining variables in rest (e.g., "pt" -> "p_{t}")
-                            // Match variable + subscript where subscript contains only common index letters (i,j,k,t,n)
-                            let processedRest = rest.replace(/([a-z])([ijktn]{1,3})/gi, (m, base, subscript) => {
-                                return `${base}_{${subscript}}`;
-                            });
-                            return `\\${op} \\sum_{${varName}=${start}}^{${end}} ${processedRest}`.trim();
-                        });
-                }
-
-                // If still unchanged, just wrap individual variable patterns
-                if (formatted === text) {
-                    // Match variable + subscript where subscript is common index letters (i,j,k,t,n) or numbers
-                    formatted = formatted.replace(/([a-z])([ijktn]{1,3}|\d+)/gi, (match, base, subscript) => {
-                        return `${base}_{${subscript}}`;
-                    });
-                }
-
-                return `\\(${formatted}\\)`;
-            }
-
-            // For longer text with embedded math (like explanations), wrap individual mathematical terms
-            // Pattern: single letter followed by subscript-like characters (j, t, jt, digits)
-            // Only match single letters commonly used as variables (not parts of words like "in", "it", "at")
-            text = text.replace(/\b([a-z])([ijknt]{1,3}|\d+)\b/gi, (match, base, subscript) => {
-                // Be selective: only wrap if it really looks like a math variable
-                // Common subscripts in optimization: i, j, k, t, n, and numbers
-                // Also check that this isn't part of a common English word
-                const fullMatch = match.toLowerCase();
-                const commonWords = ['it', 'in', 'at', 'an', 'if', 'pi', 'xi'];
-
-                if (commonWords.includes(fullMatch)) {
-                    return match; // Don't wrap common words
-                }
-
-                if (/^[ijknt]{1,3}$|^\d+$/.test(subscript)) {
-                    return `\\(${base}_{${subscript}}\\)`;
-                }
-                return match;
-            });
-
-            return text;
-            } catch (error) {
-                console.error('Error in wrapMathExpressions:', error);
-                return text; // Return original text if there's an error
-            }
-        }
-
         function cleanText(text) {
             if (!text) return '';
-
-            // Don't wrap math here - it interferes with parsing
-            // Math wrapping will happen later in the pipeline
-
-            let cleaned = text
+            return text
                 .replace(/\*\*/g, '')
                 .replace(/\[/g, '')
                 .replace(/\]/g, '')
                 .replace(/\{\.underline\}/g, '')
                 .replace(/\{\.mark\}/g, '')
                 .trim();
-
-            return cleaned;
         }
         
         function parseProblems(text) {
@@ -1622,24 +1515,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
             let problemCount = 0;
             let inChoices = false;
             let currentLabel = '';
-            let currentChoiceText = '';
-            let currentChoiceCorrect = false;
             
             for (let i = startIndex; i < lines.length; i++) {
                 const line = lines[i].trim();
                 
                 const labelMatch = line.match(/^Label:\s*(.+)/i);
                 if (labelMatch) {
-                    // Save any accumulated choice
-                    if (currentChoiceText.trim()) {
-                        if (currentChoiceCorrect) {
-                            correctIndices.push(choices.length);
-                        }
-                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
-                        currentChoiceText = '';
-                        currentChoiceCorrect = false;
-                    }
-
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1663,16 +1544,6 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 const partQuestionMatch = line.match(/^Part\s+\d+\s+Question\s+\d+/i);
                 if (partQuestionMatch) {
-                    // Save any accumulated choice
-                    if (currentChoiceText.trim()) {
-                        if (currentChoiceCorrect) {
-                            correctIndices.push(choices.length);
-                        }
-                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
-                        currentChoiceText = '';
-                        currentChoiceCorrect = false;
-                    }
-
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1699,18 +1570,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
                 
-                if (line.match(/^Part\s+\d+\s+Question\s+\d+/i) ||
+                if (line.match(/^Part\s+\d+\s+Question\s+\d+/i) || 
                     line.match(/^\*\*Part\s+\d+\s+Question\s+\d+/i)) {
-                    // Save any accumulated choice
-                    if (currentChoiceText.trim()) {
-                        if (currentChoiceCorrect) {
-                            correctIndices.push(choices.length);
-                        }
-                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
-                        currentChoiceText = '';
-                        currentChoiceCorrect = false;
-                    }
-
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1733,16 +1594,6 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 const originalMatch = line.match(/^Original:\s*(.+)/i) || line.match(/^\*\*Original:\s*(.+)/i);
                 if (originalMatch) {
-                    // Save any accumulated choice
-                    if (currentChoiceText.trim()) {
-                        if (currentChoiceCorrect) {
-                            correctIndices.push(choices.length);
-                        }
-                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
-                        currentChoiceText = '';
-                        currentChoiceCorrect = false;
-                    }
-
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1758,7 +1609,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                     }
-
+                    
                     questionText = originalMatch[1];
                     inChoices = true;
                     continue;
@@ -1766,16 +1617,6 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 const numberedQuestionMatch = line.match(/^\d+\.\s+(.+)/);
                 if (numberedQuestionMatch) {
-                    // Save any accumulated choice
-                    if (currentChoiceText.trim()) {
-                        if (currentChoiceCorrect) {
-                            correctIndices.push(choices.length);
-                        }
-                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
-                        currentChoiceText = '';
-                        currentChoiceCorrect = false;
-                    }
-
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1791,7 +1632,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                     }
-
+                    
                     questionText = numberedQuestionMatch[1];
                     inChoices = true;
                     continue;
@@ -1801,16 +1642,6 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 const isQuestion = (line.endsWith('?') || line.includes('?') || selectAllPattern.test(line)) && !line.toLowerCase().startsWith('explanation');
                 
                 if (isQuestion) {
-                    // Save any accumulated choice
-                    if (currentChoiceText.trim()) {
-                        if (currentChoiceCorrect) {
-                            correctIndices.push(choices.length);
-                        }
-                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
-                        currentChoiceText = '';
-                        currentChoiceCorrect = false;
-                    }
-
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1826,7 +1657,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                     }
-
+                    
                     questionText = line;
                     inChoices = true;
                     continue;
@@ -1860,38 +1691,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
 
-                // Handle "Correct: A, C" format (supports both Latin and Greek letters)
+                // Handle "Correct: A, C" format
                 const correctMatch = line.match(/^Correct:\s*(.+)/i);
-                if (correctMatch && questionText) {
-                    // Save any accumulated choice before processing "Correct:"
-                    if (currentChoiceText.trim()) {
-                        if (currentChoiceCorrect) {
-                            correctIndices.push(choices.length);
-                        }
-                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
-                        currentChoiceText = '';
-                        currentChoiceCorrect = false;
-                    }
-
-                    if (choices.length > 0) {
-                        const correctLetters = correctMatch[1].trim();
-                        // Parse letters (A, B, C, etc.) and convert to indices
-                        // Support both Latin (A-Z) and Greek (Α-Ω) letters
-                        const letterMatches = correctLetters.match(/[A-ZΑ-Ω]/gi);
-                        if (letterMatches) {
-                            correctIndices = letterMatches.map(letter => {
-                                const upperLetter = letter.toUpperCase();
-                                // Check if it's a Greek letter
-                                const greekCode = upperLetter.charCodeAt(0);
-                                if (greekCode >= 0x0391 && greekCode <= 0x03A9) {
-                                    // Greek letter: Α=0x0391 maps to index 0
-                                    return greekCode - 0x0391;
-                                } else {
-                                    // Latin letter: A=0x41 maps to index 0
-                                    return upperLetter.charCodeAt(0) - 'A'.charCodeAt(0);
-                                }
-                            }).filter(index => index >= 0 && index < choices.length);
-                        }
+                if (correctMatch && questionText && choices.length > 0) {
+                    const correctLetters = correctMatch[1].trim();
+                    // Parse letters (A, B, C, etc.) and convert to indices
+                    const letterMatches = correctLetters.match(/[A-Z]/gi);
+                    if (letterMatches) {
+                        correctIndices = letterMatches.map(letter => {
+                            return letter.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
+                        }).filter(index => index >= 0 && index < choices.length);
                     }
                     inChoices = false;
                     continue;
@@ -1900,16 +1709,6 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 if (line.toLowerCase().startsWith('explanation:') ||
                     line.toLowerCase().startsWith('explain:') ||
                     line.toLowerCase() === 'explanation') {
-                    // Save any accumulated choice before processing "Explanation:"
-                    if (currentChoiceText.trim()) {
-                        if (currentChoiceCorrect) {
-                            correctIndices.push(choices.length);
-                        }
-                        choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
-                        currentChoiceText = '';
-                        currentChoiceCorrect = false;
-                    }
-
                     inChoices = false;
                     explanation = line.replace(/^explanation:\s*/i, '').replace(/^explain:\s*/i, '');
                     if (!explanation || explanation.toLowerCase() === 'explanation') {
@@ -1924,49 +1723,26 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 }
                 
                 if (questionText && inChoices) {
-                    // Check if this line starts a new choice (A., B., C., etc.)
-                    const choicePrefixMatch = line.match(/^[A-ZΑ-Ω]\.\s*/i);
+                    const isCorrect = line.toLowerCase().includes('(correct)') ||
+                                      line.toLowerCase().includes('(correct answer)') ||
+                                      line.includes('**(correct');
+                    const choiceText = line
+                        .replace(/^[A-Z]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes
+                        .replace(/\*\*\(correct.*?\)\*\*/i, '')
+                        .replace(/\(correct\s*answer\)/i, '')
+                        .replace(/\(correct\)/i, '')
+                        .replace(/\\$/, '')
+                        .trim();
 
-                    if (choicePrefixMatch) {
-                        // Save any accumulated choice before starting new one
-                        if (currentChoiceText.trim()) {
-                            if (currentChoiceCorrect) {
-                                correctIndices.push(choices.length);
-                            }
-                            choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
+                    if (choiceText) {
+                        if (isCorrect) {
+                            correctIndices.push(choices.length);
                         }
-
-                        // Start new choice
-                        const isCorrect = line.toLowerCase().includes('(correct)') ||
-                                          line.toLowerCase().includes('(correct answer)') ||
-                                          line.includes('**(correct');
-                        currentChoiceCorrect = isCorrect;
-                        currentChoiceText = line
-                            .replace(/^[A-ZΑ-Ω]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes
-                            .replace(/\*\*\(correct.*?\)\*\*/i, '')
-                            .replace(/\(correct\s*answer\)/i, '')
-                            .replace(/\(correct\)/i, '')
-                            .replace(/\\$/, '')
-                            .trim();
-                    } else {
-                        // Continuation of current choice - accumulate with newline
-                        if (currentChoiceText) {
-                            currentChoiceText += '\n' + line;
-                        } else {
-                            currentChoiceText = line;
-                        }
+                        choices.push({ text: choiceText, correct: isCorrect });
                     }
                 }
             }
-
-            // Save any accumulated choice at the end
-            if (currentChoiceText.trim()) {
-                if (currentChoiceCorrect) {
-                    correctIndices.push(choices.length);
-                }
-                choices.push({ text: currentChoiceText.trim(), correct: currentChoiceCorrect });
-            }
-
+            
             if (questionText && choices.length > 0) {
                 problemCount++;
                 const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -2234,17 +2010,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
             attachEditListeners();
 
             // Re-render MathJax equations
-            if (window.MathJax) {
-                // Clear MathJax cache for this container
-                if (window.MathJax.typesetClear) {
-                    window.MathJax.typesetClear([container]);
-                }
-                // Typeset the new content
-                if (window.MathJax.typesetPromise) {
-                    window.MathJax.typesetPromise([container]).catch((err) => {
-                        console.error('MathJax rendering error:', err);
-                    });
-                }
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise([container]).catch((err) => {
+                    console.error('MathJax rendering error:', err);
+                });
             }
         }
 
@@ -2262,17 +2031,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
             attachEditListeners();
 
             // Re-render MathJax equations
-            if (window.MathJax) {
-                // Clear MathJax cache for this container
-                if (window.MathJax.typesetClear) {
-                    window.MathJax.typesetClear([container]);
-                }
-                // Typeset the new content
-                if (window.MathJax.typesetPromise) {
-                    window.MathJax.typesetPromise([container]).catch((err) => {
-                        console.error('MathJax rendering error:', err);
-                    });
-                }
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise([container]).catch((err) => {
+                    console.error('MathJax rendering error:', err);
+                });
             }
         }
         
@@ -2392,23 +2154,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
             } else if (field === 'answer') {
                 currentProblems[problemIndex].answer = content;
             }
-
+            
             // Update OLX output
             updateOLXOutput();
-
-            // Re-render MathJax in the edited element
-            if (window.MathJax) {
-                // Clear MathJax cache for this element
-                if (window.MathJax.typesetClear) {
-                    window.MathJax.typesetClear([el]);
-                }
-                // Typeset the new content
-                if (window.MathJax.typesetPromise) {
-                    window.MathJax.typesetPromise([el]).catch((err) => {
-                        console.error('MathJax rendering error:', err);
-                    });
-                }
-            }
         }
         
         function handleFocus(e) {
