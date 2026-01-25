@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.4</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.6</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1265,8 +1265,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function escapeHtmlWithFormatting(text) {
             if (!text) return '';
 
-            // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre
-            const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre'];
+            // Convert line breaks to <br/> tags early, before protecting other content
+            text = text.replace(/\n/g, '<br/>');
+
+            // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre, br
+            const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br'];
             let result = text;
             const tagPlaceholders = {};
             let placeholderIndex = 0;
@@ -1309,9 +1312,17 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 return placeholder;
             });
 
+            // Protect <br/> tags (self-closing)
+            result = result.replace(/<br\s*\/?>/gi, () => {
+                const placeholder = `__BR_${placeholderIndex}__`;
+                tagPlaceholders[placeholder] = '<br/>';
+                placeholderIndex++;
+                return placeholder;
+            });
+
             // Protect other allowed tags
             allowedTags.forEach(tag => {
-                if (tag === 'a') return; // Already handled
+                if (tag === 'a' || tag === 'br') return; // Already handled
                 const tagRegex = new RegExp(`<${tag}>(.*?)<\/${tag}>`, 'gi');
                 result = result.replace(tagRegex, (match, content) => {
                     const placeholder = `__TAG_${placeholderIndex}__`;
@@ -1333,7 +1344,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function escapeXmlWithFormatting(text) {
-            const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre'];
+            if (!text) return '';
+
+            // Convert line breaks to <br/> tags early, before protecting other content
+            text = text.replace(/\n/g, '<br/>');
+
+            const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br'];
             let protected = text;
             const tagPlaceholders = {};
             let placeholderIndex = 0;
@@ -1393,9 +1409,17 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 placeholderIndex++;
                 return placeholder;
             });
-            
+
+            // Protect <br/> tags (self-closing)
+            protected = protected.replace(/<br\s*\/?>/gi, () => {
+                const placeholder = `__BR_${placeholderIndex}__`;
+                tagPlaceholders[placeholder] = '<br/>';
+                placeholderIndex++;
+                return placeholder;
+            });
+
             allowedTags.forEach(tag => {
-                if (tag === 'a' || tag === 'pre') return; // Already handled
+                if (tag === 'a' || tag === 'pre' || tag === 'br') return; // Already handled
                 const openRegex = new RegExp(`<${tag}>`, 'gi');
                 const closeRegex = new RegExp(`</${tag}>`, 'gi');
                 
@@ -2752,10 +2776,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
             });
         }
         
-        function generateSingleProblemXML(problem, index) {
+        function generateSingleProblemXML(problem, index, urlName) {
             const displayName = problem.title;
             const maxAttempts = getMaxAttempts(problem);
-            const parts = [`<problem display_name="${escapeXml(displayName)}" max_attempts="${maxAttempts}" markdown="null">`];
+            const urlNameAttr = urlName ? ` url_name="${escapeXml(urlName)}"` : '';
+            const parts = [`<problem${urlNameAttr} display_name="${escapeXml(displayName)}" max_attempts="${maxAttempts}" markdown="null">`];
 
             if (problem.answerType === 'numerical') {
                 parts.push(
@@ -2837,7 +2862,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     return {
                         id: problemId,
                         filename: `${problemId}.xml`,
-                        content: generateSingleProblemXML(problem, index)
+                        content: generateSingleProblemXML(problem, index, problemId)
                     };
                 });
                 
