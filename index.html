@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.3</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.4</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1432,8 +1432,6 @@ Explanation: Sales by category represents distinct groups."></textarea>
             if (!text) return '';
             return text
                 .replace(/\*\*/g, '')
-                .replace(/\[/g, '')
-                .replace(/\]/g, '')
                 .replace(/\{\.underline\}/g, '')
                 .replace(/\{\.mark\}/g, '')
                 .trim();
