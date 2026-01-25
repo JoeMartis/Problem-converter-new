@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.6</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.7</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1265,14 +1265,24 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function escapeHtmlWithFormatting(text) {
             if (!text) return '';
 
+            const tagPlaceholders = {};
+            let placeholderIndex = 0;
+
+            // Protect \begin{center}...\end{center} blocks BEFORE converting line breaks
+            // This preserves the entire block including newlines exactly as-is
+            text = text.replace(/\\begin\{center\}([\s\S]*?)\\end\{center\}/g, (match, content) => {
+                const placeholder = `__CENTER_${placeholderIndex}__`;
+                tagPlaceholders[placeholder] = match; // Keep the entire block unchanged
+                placeholderIndex++;
+                return placeholder;
+            });
+
             // Convert line breaks to <br/> tags early, before protecting other content
             text = text.replace(/\n/g, '<br/>');
 
             // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre, br
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br'];
             let result = text;
-            const tagPlaceholders = {};
-            let placeholderIndex = 0;
 
             // Protect LaTeX expressions (both inline and display)
             // Inline: \( ... \) or $ ... $
@@ -1346,13 +1356,23 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function escapeXmlWithFormatting(text) {
             if (!text) return '';
 
+            const tagPlaceholders = {};
+            let placeholderIndex = 0;
+
+            // Protect \begin{center}...\end{center} blocks BEFORE converting line breaks
+            // This preserves the entire block including newlines exactly as-is
+            text = text.replace(/\\begin\{center\}([\s\S]*?)\\end\{center\}/g, (match, content) => {
+                const placeholder = `__CENTER_${placeholderIndex}__`;
+                tagPlaceholders[placeholder] = match; // Keep the entire block unchanged
+                placeholderIndex++;
+                return placeholder;
+            });
+
             // Convert line breaks to <br/> tags early, before protecting other content
             text = text.replace(/\n/g, '<br/>');
 
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br'];
             let protected = text;
-            const tagPlaceholders = {};
-            let placeholderIndex = 0;
 
             // Protect LaTeX expressions (both inline and display)
             const latexPatterns = [
