@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.1</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.2</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1856,7 +1856,26 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 // Check for explicit "End Explanation" marker
                 if (line.toLowerCase() === 'end explanation' ||
                     line.toLowerCase().startsWith('end explanation')) {
-                    // Stop accumulating explanation and skip this marker line
+                    // If we have a complete problem (question + choices), finalize it now
+                    if (questionText && choices.length > 0) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: correctIndices.length <= 1,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        // Reset for next problem
+                        questionText = '';
+                        choices = [];
+                        correctIndices = [];
+                        explanation = '';
+                        inChoices = false;
+                    }
+                    // Set flag so next lines start a new question
                     explanationEnded = true;
                     continue;
                 }
