@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.7</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.8</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1277,11 +1277,51 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 return placeholder;
             });
 
+            // Convert markdown-style bullet lists to HTML before line break conversion
+            // Detect consecutive lines starting with - or * followed by space
+            const lines = text.split('\n');
+            let inList = false;
+            let processedLines = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const isBullet = /^\s*[-*]\s+(.+)/.test(line);
+
+                if (isBullet) {
+                    const bulletContent = line.replace(/^\s*[-*]\s+/, '');
+                    if (!inList) {
+                        processedLines.push('<ul>');
+                        inList = true;
+                    }
+                    processedLines.push(`<li>${bulletContent}</li>`);
+                } else {
+                    if (inList && line.trim() === '') {
+                        // Empty line ends the list
+                        processedLines.push('</ul>');
+                        inList = false;
+                    } else if (inList && line.trim() !== '') {
+                        // Non-empty, non-bullet line ends the list
+                        processedLines.push('</ul>');
+                        inList = false;
+                        processedLines.push(line);
+                    } else {
+                        processedLines.push(line);
+                    }
+                }
+            }
+
+            // Close any unclosed list
+            if (inList) {
+                processedLines.push('</ul>');
+            }
+
+            text = processedLines.join('\n');
+
             // Convert line breaks to <br/> tags early, before protecting other content
             text = text.replace(/\n/g, '<br/>');
 
-            // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre, br
-            const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br'];
+            // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre, br, ul, li
+            const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br', 'ul', 'li'];
             let result = text;
 
             // Protect LaTeX expressions (both inline and display)
@@ -1368,10 +1408,50 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 return placeholder;
             });
 
+            // Convert markdown-style bullet lists to HTML before line break conversion
+            // Detect consecutive lines starting with - or * followed by space
+            const lines = text.split('\n');
+            let inList = false;
+            let processedLines = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const isBullet = /^\s*[-*]\s+(.+)/.test(line);
+
+                if (isBullet) {
+                    const bulletContent = line.replace(/^\s*[-*]\s+/, '');
+                    if (!inList) {
+                        processedLines.push('<ul>');
+                        inList = true;
+                    }
+                    processedLines.push(`<li>${bulletContent}</li>`);
+                } else {
+                    if (inList && line.trim() === '') {
+                        // Empty line ends the list
+                        processedLines.push('</ul>');
+                        inList = false;
+                    } else if (inList && line.trim() !== '') {
+                        // Non-empty, non-bullet line ends the list
+                        processedLines.push('</ul>');
+                        inList = false;
+                        processedLines.push(line);
+                    } else {
+                        processedLines.push(line);
+                    }
+                }
+            }
+
+            // Close any unclosed list
+            if (inList) {
+                processedLines.push('</ul>');
+            }
+
+            text = processedLines.join('\n');
+
             // Convert line breaks to <br/> tags early, before protecting other content
             text = text.replace(/\n/g, '<br/>');
 
-            const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br'];
+            const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br', 'ul', 'li'];
             let protected = text;
 
             // Protect LaTeX expressions (both inline and display)
@@ -1758,10 +1838,21 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     }
                     continue;
                 }
-                
+
+                // Check if this line looks like the start of a new question's setup
+                // These patterns indicate we should NOT add this to the current explanation
+                const isQuestionSetup = /^(suppose|consider|given|let|assume|if|imagine)\s+/i.test(line);
+                const looksLikeNewQuestion = /^(what|which|why|how|when|where|who|does|is|are|can|should|would|will)\s+/i.test(line);
+
                 if (!inChoices && questionText && choices.length > 0) {
-                    explanation += (explanation ? ' ' : '') + line;
-                    continue;
+                    // Stop accumulating explanation if we see a new question setup or question
+                    if (isQuestionSetup || looksLikeNewQuestion) {
+                        // This line belongs to the next question, not this explanation
+                        // Don't add it to explanation, and don't continue - let it be processed as new question
+                    } else {
+                        explanation += (explanation ? ' ' : '') + line;
+                        continue;
+                    }
                 }
                 
                 if (questionText && inChoices) {
