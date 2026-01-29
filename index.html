@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.0</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.1</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1787,7 +1787,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         explanationEnded = false;
                     }
 
-                    questionText = line;
+                    // Append to existing questionText if we've been accumulating setup text after "End Explanation"
+                    if (explanationEnded && questionText) {
+                        questionText = questionText + ' ' + line;
+                    } else {
+                        questionText = line;
+                    }
                     inChoices = true;
                     continue;
                 }
@@ -1889,6 +1894,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             correctIndices.push(choices.length);
                         }
                         choices.push({ text: choiceText, correct: isCorrect });
+                    }
+                }
+
+                // After "End Explanation", accumulate setup text for the next question
+                // This catches lines that fall through all other patterns
+                if (explanationEnded && !inChoices && line) {
+                    // Skip LaTeX section markers and other metadata
+                    if (!line.startsWith('\\section') && !line.startsWith('\\subsection')) {
+                        // Build up the next question text from all lines until choices start
+                        questionText = questionText ? questionText + ' ' + line : line;
                     }
                 }
             }
