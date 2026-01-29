@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.9</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.0</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1637,6 +1637,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             let problemCount = 0;
             let inChoices = false;
             let currentLabel = '';
+            let explanationEnded = false;
             
             for (let i = startIndex; i < lines.length; i++) {
                 const line = lines[i].trim();
@@ -1658,6 +1659,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         choices = [];
                         correctIndices = [];
                         explanation = '';
+                        explanationEnded = false;
                         inChoices = false;
                     }
                     currentLabel = labelMatch[1].trim();
@@ -1681,6 +1683,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         choices = [];
                         correctIndices = [];
                         explanation = '';
+                        explanationEnded = false;
                         inChoices = false;
                     }
                     currentLabel = line.trim();
@@ -1709,6 +1712,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         choices = [];
                         correctIndices = [];
                         explanation = '';
+                        explanationEnded = false;
                         inChoices = false;
                     }
                     continue;
@@ -1730,8 +1734,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         choices = [];
                         correctIndices = [];
                         explanation = '';
+                        explanationEnded = false;
                     }
-                    
+
                     questionText = originalMatch[1];
                     inChoices = true;
                     continue;
@@ -1753,8 +1758,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         choices = [];
                         correctIndices = [];
                         explanation = '';
+                        explanationEnded = false;
                     }
-                    
+
                     questionText = numberedQuestionMatch[1];
                     inChoices = true;
                     continue;
@@ -1778,8 +1784,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         choices = [];
                         correctIndices = [];
                         explanation = '';
+                        explanationEnded = false;
                     }
-                    
+
                     questionText = line;
                     inChoices = true;
                     continue;
@@ -1809,6 +1816,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     choices = [];
                     correctIndices = [];
                     explanation = '';
+                    explanationEnded = false;
                     inChoices = false;
                     continue;
                 }
@@ -1832,6 +1840,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     line.toLowerCase().startsWith('explain:') ||
                     line.toLowerCase() === 'explanation') {
                     inChoices = false;
+                    explanationEnded = false; // Reset flag when starting new explanation
                     explanation = line.replace(/^explanation:\s*/i, '').replace(/^explain:\s*/i, '');
                     if (!explanation || explanation.toLowerCase() === 'explanation') {
                         explanation = '';
@@ -1843,6 +1852,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 if (line.toLowerCase() === 'end explanation' ||
                     line.toLowerCase().startsWith('end explanation')) {
                     // Stop accumulating explanation and skip this marker line
+                    explanationEnded = true;
                     continue;
                 }
 
@@ -1851,7 +1861,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 const isQuestionSetup = /^(suppose|consider|given|let|assume|if|imagine)\s+/i.test(line);
                 const looksLikeNewQuestion = /^(what|which|why|how|when|where|who|does|is|are|can|should|would|will)\s+/i.test(line);
 
-                if (!inChoices && questionText && choices.length > 0) {
+                if (!inChoices && questionText && choices.length > 0 && !explanationEnded) {
                     // Stop accumulating explanation if we see a new question setup or question
                     if (isQuestionSetup || looksLikeNewQuestion) {
                         // This line belongs to the next question, not this explanation
