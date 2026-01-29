@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.1</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.0</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1768,7 +1768,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 const selectAllPattern = /\(select all that apply\.?\)$/i;
                 const isQuestion = (line.endsWith('?') || line.includes('?') || selectAllPattern.test(line)) && !line.toLowerCase().startsWith('explanation');
-
+                
                 if (isQuestion) {
                     if (questionText && choices.length > 0) {
                         problemCount++;
@@ -1787,8 +1787,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         explanationEnded = false;
                     }
 
-                    // Append to existing questionText if it was being accumulated
-                    questionText = questionText && !inChoices ? questionText + ' ' + line : line;
+                    questionText = line;
                     inChoices = true;
                     continue;
                 }
@@ -1872,21 +1871,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         continue;
                     }
                 }
-
-                // After "end explanation", accumulate question setup text before the actual question
-                // This handles multi-line questions where setup comes before the question ending with ?
-                if (!inChoices && explanationEnded && choices.length === 0 && line) {
-                    // Don't accumulate if this looks like a choice or "Correct:" marker
-                    const looksLikeChoice = /^[A-Z]\.\s+/.test(line);
-                    const isCorrectMarker = /^Correct:\s*/i.test(line);
-
-                    if (!looksLikeChoice && !isCorrectMarker) {
-                        // Accumulate into questionText for the next problem
-                        questionText = questionText ? questionText + ' ' + line : line;
-                        continue;
-                    }
-                }
-
+                
                 if (questionText && inChoices) {
                     const isCorrect = line.toLowerCase().includes('(correct)') ||
                                       line.toLowerCase().includes('(correct answer)') ||
