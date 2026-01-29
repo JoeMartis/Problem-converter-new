@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.8</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v2.9</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1836,6 +1836,13 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     if (!explanation || explanation.toLowerCase() === 'explanation') {
                         explanation = '';
                     }
+                    continue;
+                }
+
+                // Check for explicit "End Explanation" marker
+                if (line.toLowerCase() === 'end explanation' ||
+                    line.toLowerCase().startsWith('end explanation')) {
+                    // Stop accumulating explanation and skip this marker line
                     continue;
                 }
 
