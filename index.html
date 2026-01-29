@@ -1768,7 +1768,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 const selectAllPattern = /\(select all that apply\.?\)$/i;
                 const isQuestion = (line.endsWith('?') || line.includes('?') || selectAllPattern.test(line)) && !line.toLowerCase().startsWith('explanation');
-
+                
                 if (isQuestion) {
                     if (questionText && choices.length > 0) {
                         problemCount++;
@@ -1787,8 +1787,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         explanationEnded = false;
                     }
 
-                    // Append to existing questionText if it was being accumulated
-                    questionText = questionText && !inChoices ? questionText + ' ' + line : line;
+                    // Append to existing questionText if we've been accumulating setup text after "End Explanation"
+                    if (explanationEnded && questionText) {
+                        questionText = questionText + ' ' + line;
+                    } else {
+                        questionText = line;
+                    }
                     inChoices = true;
                     continue;
                 }
@@ -1872,21 +1876,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         continue;
                     }
                 }
-
-                // After "end explanation", accumulate question setup text before the actual question
-                // This handles multi-line questions where setup comes before the question ending with ?
-                if (!inChoices && explanationEnded && choices.length === 0 && line) {
-                    // Don't accumulate if this looks like a choice or "Correct:" marker
-                    const looksLikeChoice = /^[A-Z]\.\s+/.test(line);
-                    const isCorrectMarker = /^Correct:\s*/i.test(line);
-
-                    if (!looksLikeChoice && !isCorrectMarker) {
-                        // Accumulate into questionText for the next problem
-                        questionText = questionText ? questionText + ' ' + line : line;
-                        continue;
-                    }
-                }
-
+                
                 if (questionText && inChoices) {
                     const isCorrect = line.toLowerCase().includes('(correct)') ||
                                       line.toLowerCase().includes('(correct answer)') ||
@@ -1904,6 +1894,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             correctIndices.push(choices.length);
                         }
                         choices.push({ text: choiceText, correct: isCorrect });
+                    }
+                }
+
+                // After "End Explanation", accumulate setup text for the next question
+                // This catches lines that fall through all other patterns
+                if (explanationEnded && !inChoices && line) {
+                    // Skip LaTeX section markers and other metadata
+                    if (!line.startsWith('\\section') && !line.startsWith('\\subsection')) {
+                        // Build up the next question text from all lines until choices start
+                        questionText = questionText ? questionText + ' ' + line : line;
                     }
                 }
             }
