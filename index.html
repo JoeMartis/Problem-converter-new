@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.7</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.8</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1909,7 +1909,26 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     // Stop accumulating explanation if we see a new question setup or question
                     if (isQuestionSetup || looksLikeNewQuestion) {
                         // This line belongs to the next question, not this explanation
-                        // Don't add it to explanation, and don't continue - let it be processed as new question
+                        // Finalize the current problem first
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: correctIndices.length <= 1,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        // Reset for next problem and start accumulating this line as new question
+                        questionText = line;
+                        choices = [];
+                        correctIndices = [];
+                        explanation = '';
+                        inChoices = false;
+                        explanationEnded = false;
+                        questionEnded = false;
+                        continue;
                     } else {
                         explanation += (explanation ? ' ' : '') + line;
                         continue;
@@ -1940,10 +1959,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     }
                 }
 
-                // After "End Explanation", accumulate setup text for the next question
+                // After "End Explanation" or after detecting question setup, accumulate setup text for the next question
                 // This catches lines that fall through all other patterns
                 // Stop accumulating if we've seen "endquestion" marker
-                if (explanationEnded && !inChoices && !questionEnded && line) {
+                if ((explanationEnded || (questionText && !inChoices && choices.length === 0)) && !questionEnded && line) {
                     // Skip LaTeX section markers and other metadata
                     if (!line.startsWith('\\section') && !line.startsWith('\\subsection')) {
                         // Build up the next question text from all lines until choices start or "endquestion" is seen
