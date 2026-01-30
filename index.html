@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.3</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.4</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1889,9 +1889,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
 
-                // Check for explicit "end?" marker to mark end of question label
-                if (line.toLowerCase() === 'end?' ||
-                    line.toLowerCase().startsWith('end?')) {
+                // Check for explicit "endquestion" marker to mark end of question label
+                if (line.toLowerCase() === 'endquestion' ||
+                    line.toLowerCase().startsWith('endquestion')) {
                     // Stop accumulating into questionText - the question label is complete
                     // Mark that we're ready for choices to start
                     questionEnded = true;
@@ -1937,11 +1937,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
                 // After "End Explanation", accumulate setup text for the next question
                 // This catches lines that fall through all other patterns
-                // Stop accumulating if we've seen "end?" marker
+                // Stop accumulating if we've seen "endquestion" marker
                 if (explanationEnded && !inChoices && !questionEnded && line) {
                     // Skip LaTeX section markers and other metadata
                     if (!line.startsWith('\\section') && !line.startsWith('\\subsection')) {
-                        // Build up the next question text from all lines until choices start or "end?" is seen
+                        // Build up the next question text from all lines until choices start or "endquestion" is seen
                         questionText = questionText ? questionText + ' ' + line : line;
                     }
                 }
