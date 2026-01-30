@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.4</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.5</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1697,31 +1697,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 if (!line) {
                     continue;
                 }
-                
-                if (line.match(/^Part\s+\d+\s+Question\s+\d+/i) ||
-                    line.match(/^\*\*Part\s+\d+\s+Question\s+\d+/i)) {
-                    if (questionText && choices.length > 0) {
-                        problemCount++;
-                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                        problems.push({
-                            title: displayName,
-                            question: cleanText(questionText),
-                            choices: choices.map(c => cleanText(c.text)),
-                            correctIndices: correctIndices,
-                            isMultipleChoice: correctIndices.length <= 1,
-                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                        });
-                        questionText = '';
-                        choices = [];
-                        correctIndices = [];
-                        explanation = '';
-                        explanationEnded = false;
-                        questionEnded = false;
-                        inChoices = false;
-                    }
-                    continue;
-                }
-                
+
                 const originalMatch = line.match(/^Original:\s*(.+)/i) || line.match(/^\*\*Original:\s*(.+)/i);
                 if (originalMatch) {
                     if (questionText && choices.length > 0) {
@@ -1738,12 +1714,13 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         choices = [];
                         correctIndices = [];
                         explanation = '';
-                        explanationEnded = false;
-                        questionEnded = false;
                     }
 
+                    // Reset flags when starting new question
                     questionText = originalMatch[1];
                     inChoices = true;
+                    explanationEnded = false;
+                    questionEnded = false;
                     continue;
                 }
                 
@@ -1763,12 +1740,13 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         choices = [];
                         correctIndices = [];
                         explanation = '';
-                        explanationEnded = false;
-                        questionEnded = false;
                     }
 
+                    // Reset flags when starting new question
                     questionText = numberedQuestionMatch[1];
                     inChoices = true;
+                    explanationEnded = false;
+                    questionEnded = false;
                     continue;
                 }
                 
@@ -1797,6 +1775,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     // Append to existing questionText if we've been accumulating setup text after "End Explanation"
                     if (explanationEnded && questionText) {
                         questionText = questionText + ' ' + line;
+                        // Reset flags now that we've started the question proper
+                        explanationEnded = false;
+                        questionEnded = false;
                     } else {
                         questionText = line;
                     }
@@ -1916,22 +1897,26 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 }
                 
                 if (questionText && inChoices) {
-                    const isCorrect = line.toLowerCase().includes('(correct)') ||
-                                      line.toLowerCase().includes('(correct answer)') ||
-                                      line.includes('**(correct');
-                    const choiceText = line
-                        .replace(/^[A-Z]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes
-                        .replace(/\*\*\(correct.*?\)\*\*/i, '')
-                        .replace(/\(correct\s*answer\)/i, '')
-                        .replace(/\(correct\)/i, '')
-                        .replace(/\\$/, '')
-                        .trim();
+                    // Only process lines that look like choices (start with A., B., C., etc.)
+                    const choicePattern = /^[A-Z]\.\s*/i;
+                    if (choicePattern.test(line)) {
+                        const isCorrect = line.toLowerCase().includes('(correct)') ||
+                                          line.toLowerCase().includes('(correct answer)') ||
+                                          line.includes('**(correct');
+                        const choiceText = line
+                            .replace(/^[A-Z]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes
+                            .replace(/\*\*\(correct.*?\)\*\*/i, '')
+                            .replace(/\(correct\s*answer\)/i, '')
+                            .replace(/\(correct\)/i, '')
+                            .replace(/\\$/, '')
+                            .trim();
 
-                    if (choiceText) {
-                        if (isCorrect) {
-                            correctIndices.push(choices.length);
+                        if (choiceText) {
+                            if (isCorrect) {
+                                correctIndices.push(choices.length);
+                            }
+                            choices.push({ text: choiceText, correct: isCorrect });
                         }
-                        choices.push({ text: choiceText, correct: isCorrect });
                     }
                 }
 
