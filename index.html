@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.5</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.6</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1317,12 +1317,21 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             text = processedLines.join('\n');
 
-            // Convert line breaks to <br/> tags early, before protecting other content
-            text = text.replace(/\n/g, '<br/>');
-
             // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre, br, ul, li
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br', 'ul', 'li'];
             let result = text;
+
+            // Protect <ul>...</ul> blocks BEFORE converting line breaks
+            // This prevents <br/> tags from being inserted between list elements
+            result = result.replace(/<ul>([\s\S]*?)<\/ul>/gi, (match) => {
+                const placeholder = `__UL_${placeholderIndex}__`;
+                tagPlaceholders[placeholder] = match;
+                placeholderIndex++;
+                return placeholder;
+            });
+
+            // Convert line breaks to <br/> tags after protecting list structures
+            result = result.replace(/\n/g, '<br/>');
 
             // Protect LaTeX expressions (both inline and display)
             // Inline: \( ... \) or $ ... $
@@ -1448,11 +1457,20 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             text = processedLines.join('\n');
 
-            // Convert line breaks to <br/> tags early, before protecting other content
-            text = text.replace(/\n/g, '<br/>');
-
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br', 'ul', 'li'];
             let protected = text;
+
+            // Protect <ul>...</ul> blocks BEFORE converting line breaks
+            // This prevents <br/> tags from being inserted between list elements
+            protected = protected.replace(/<ul>([\s\S]*?)<\/ul>/gi, (match) => {
+                const placeholder = `__UL_${placeholderIndex}__`;
+                tagPlaceholders[placeholder] = match;
+                placeholderIndex++;
+                return placeholder;
+            });
+
+            // Convert line breaks to <br/> tags after protecting list structures
+            protected = protected.replace(/\n/g, '<br/>');
 
             // Protect LaTeX expressions (both inline and display)
             const latexPatterns = [
