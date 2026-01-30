@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.4</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.8</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1317,12 +1317,21 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             text = processedLines.join('\n');
 
-            // Convert line breaks to <br/> tags early, before protecting other content
-            text = text.replace(/\n/g, '<br/>');
-
             // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre, br, ul, li
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br', 'ul', 'li'];
             let result = text;
+
+            // Protect <ul>...</ul> blocks BEFORE converting line breaks
+            // This prevents <br/> tags from being inserted between list elements
+            result = result.replace(/<ul>([\s\S]*?)<\/ul>/gi, (match) => {
+                const placeholder = `__UL_${placeholderIndex}__`;
+                tagPlaceholders[placeholder] = match;
+                placeholderIndex++;
+                return placeholder;
+            });
+
+            // Convert line breaks to <br/> tags after protecting list structures
+            result = result.replace(/\n/g, '<br/>');
 
             // Protect LaTeX expressions (both inline and display)
             // Inline: \( ... \) or $ ... $
@@ -1448,11 +1457,20 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             text = processedLines.join('\n');
 
-            // Convert line breaks to <br/> tags early, before protecting other content
-            text = text.replace(/\n/g, '<br/>');
-
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br', 'ul', 'li'];
             let protected = text;
+
+            // Protect <ul>...</ul> blocks BEFORE converting line breaks
+            // This prevents <br/> tags from being inserted between list elements
+            protected = protected.replace(/<ul>([\s\S]*?)<\/ul>/gi, (match) => {
+                const placeholder = `__UL_${placeholderIndex}__`;
+                tagPlaceholders[placeholder] = match;
+                placeholderIndex++;
+                return placeholder;
+            });
+
+            // Convert line breaks to <br/> tags after protecting list structures
+            protected = protected.replace(/\n/g, '<br/>');
 
             // Protect LaTeX expressions (both inline and display)
             const latexPatterns = [
@@ -1697,31 +1715,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 if (!line) {
                     continue;
                 }
-                
-                if (line.match(/^Part\s+\d+\s+Question\s+\d+/i) ||
-                    line.match(/^\*\*Part\s+\d+\s+Question\s+\d+/i)) {
-                    if (questionText && choices.length > 0) {
-                        problemCount++;
-                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                        problems.push({
-                            title: displayName,
-                            question: cleanText(questionText),
-                            choices: choices.map(c => cleanText(c.text)),
-                            correctIndices: correctIndices,
-                            isMultipleChoice: correctIndices.length <= 1,
-                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                        });
-                        questionText = '';
-                        choices = [];
-                        correctIndices = [];
-                        explanation = '';
-                        explanationEnded = false;
-                        questionEnded = false;
-                        inChoices = false;
-                    }
-                    continue;
-                }
-                
+
                 const originalMatch = line.match(/^Original:\s*(.+)/i) || line.match(/^\*\*Original:\s*(.+)/i);
                 if (originalMatch) {
                     if (questionText && choices.length > 0) {
@@ -1738,12 +1732,13 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         choices = [];
                         correctIndices = [];
                         explanation = '';
-                        explanationEnded = false;
-                        questionEnded = false;
                     }
 
+                    // Reset flags when starting new question
                     questionText = originalMatch[1];
                     inChoices = true;
+                    explanationEnded = false;
+                    questionEnded = false;
                     continue;
                 }
                 
@@ -1763,12 +1758,13 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         choices = [];
                         correctIndices = [];
                         explanation = '';
-                        explanationEnded = false;
-                        questionEnded = false;
                     }
 
+                    // Reset flags when starting new question
                     questionText = numberedQuestionMatch[1];
                     inChoices = true;
+                    explanationEnded = false;
+                    questionEnded = false;
                     continue;
                 }
                 
@@ -1797,6 +1793,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     // Append to existing questionText if we've been accumulating setup text after "End Explanation"
                     if (explanationEnded && questionText) {
                         questionText = questionText + ' ' + line;
+                        // Reset flags now that we've started the question proper
+                        explanationEnded = false;
+                        questionEnded = false;
                     } else {
                         questionText = line;
                     }
@@ -1846,6 +1845,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         }).filter(index => index >= 0 && index < choices.length);
                     }
                     inChoices = false;
+                    questionEnded = false; // Reset questionEnded flag after processing choices
                     continue;
                 }
 
@@ -1854,6 +1854,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     line.toLowerCase() === 'explanation') {
                     inChoices = false;
                     explanationEnded = false; // Reset flag when starting new explanation
+                    questionEnded = false; // Reset questionEnded flag when starting explanation
                     explanation = line.replace(/^explanation:\s*/i, '').replace(/^explain:\s*/i, '');
                     if (!explanation || explanation.toLowerCase() === 'explanation') {
                         explanation = '';
@@ -1908,7 +1909,26 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     // Stop accumulating explanation if we see a new question setup or question
                     if (isQuestionSetup || looksLikeNewQuestion) {
                         // This line belongs to the next question, not this explanation
-                        // Don't add it to explanation, and don't continue - let it be processed as new question
+                        // Finalize the current problem first
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: correctIndices.length <= 1,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        // Reset for next problem and start accumulating this line as new question
+                        questionText = line;
+                        choices = [];
+                        correctIndices = [];
+                        explanation = '';
+                        inChoices = false;
+                        explanationEnded = false;
+                        questionEnded = false;
+                        continue;
                     } else {
                         explanation += (explanation ? ' ' : '') + line;
                         continue;
@@ -1916,29 +1936,33 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 }
                 
                 if (questionText && inChoices) {
-                    const isCorrect = line.toLowerCase().includes('(correct)') ||
-                                      line.toLowerCase().includes('(correct answer)') ||
-                                      line.includes('**(correct');
-                    const choiceText = line
-                        .replace(/^[A-Z]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes
-                        .replace(/\*\*\(correct.*?\)\*\*/i, '')
-                        .replace(/\(correct\s*answer\)/i, '')
-                        .replace(/\(correct\)/i, '')
-                        .replace(/\\$/, '')
-                        .trim();
+                    // Only process lines that look like choices (start with A., B., C., etc.)
+                    const choicePattern = /^[A-Z]\.\s*/i;
+                    if (choicePattern.test(line)) {
+                        const isCorrect = line.toLowerCase().includes('(correct)') ||
+                                          line.toLowerCase().includes('(correct answer)') ||
+                                          line.includes('**(correct');
+                        const choiceText = line
+                            .replace(/^[A-Z]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes
+                            .replace(/\*\*\(correct.*?\)\*\*/i, '')
+                            .replace(/\(correct\s*answer\)/i, '')
+                            .replace(/\(correct\)/i, '')
+                            .replace(/\\$/, '')
+                            .trim();
 
-                    if (choiceText) {
-                        if (isCorrect) {
-                            correctIndices.push(choices.length);
+                        if (choiceText) {
+                            if (isCorrect) {
+                                correctIndices.push(choices.length);
+                            }
+                            choices.push({ text: choiceText, correct: isCorrect });
                         }
-                        choices.push({ text: choiceText, correct: isCorrect });
                     }
                 }
 
-                // After "End Explanation", accumulate setup text for the next question
+                // After "End Explanation" or after detecting question setup, accumulate setup text for the next question
                 // This catches lines that fall through all other patterns
                 // Stop accumulating if we've seen "endquestion" marker
-                if (explanationEnded && !inChoices && !questionEnded && line) {
+                if ((explanationEnded || (questionText && !inChoices && choices.length === 0)) && !questionEnded && line) {
                     // Skip LaTeX section markers and other metadata
                     if (!line.startsWith('\\section') && !line.startsWith('\\subsection')) {
                         // Build up the next question text from all lines until choices start or "endquestion" is seen
