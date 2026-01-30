@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.2</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.4</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1638,6 +1638,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             let inChoices = false;
             let currentLabel = '';
             let explanationEnded = false;
+            let questionEnded = false;
             
             for (let i = startIndex; i < lines.length; i++) {
                 const line = lines[i].trim();
@@ -1660,6 +1661,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                         explanationEnded = false;
+                        questionEnded = false;
                         inChoices = false;
                     }
                     currentLabel = labelMatch[1].trim();
@@ -1684,6 +1686,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                         explanationEnded = false;
+                        questionEnded = false;
                         inChoices = false;
                     }
                     currentLabel = line.trim();
@@ -1695,7 +1698,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
                 
-                if (line.match(/^Part\s+\d+\s+Question\s+\d+/i) || 
+                if (line.match(/^Part\s+\d+\s+Question\s+\d+/i) ||
                     line.match(/^\*\*Part\s+\d+\s+Question\s+\d+/i)) {
                     if (questionText && choices.length > 0) {
                         problemCount++;
@@ -1713,6 +1716,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                         explanationEnded = false;
+                        questionEnded = false;
                         inChoices = false;
                     }
                     continue;
@@ -1735,6 +1739,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                         explanationEnded = false;
+                        questionEnded = false;
                     }
 
                     questionText = originalMatch[1];
@@ -1759,6 +1764,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                         explanationEnded = false;
+                        questionEnded = false;
                     }
 
                     questionText = numberedQuestionMatch[1];
@@ -1768,7 +1774,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 const selectAllPattern = /\(select all that apply\.?\)$/i;
                 const isQuestion = (line.endsWith('?') || line.includes('?') || selectAllPattern.test(line)) && !line.toLowerCase().startsWith('explanation');
-                
+
                 if (isQuestion) {
                     if (questionText && choices.length > 0) {
                         problemCount++;
@@ -1785,6 +1791,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         correctIndices = [];
                         explanation = '';
                         explanationEnded = false;
+                        questionEnded = false;
                     }
 
                     // Append to existing questionText if we've been accumulating setup text after "End Explanation"
@@ -1802,10 +1809,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     const answerValue = answerMatch[1].trim();
                     const inlineExplanation = answerMatch[2] ? answerMatch[2].trim() : '';
                     const isNumerical = /^-?\d+\.?\d*$/.test(answerValue) || /^-?\d*\.?\d+$/.test(answerValue);
-                    
+
                     problemCount++;
                     const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                    
+
                     problems.push({
                         title: displayName,
                         question: cleanText(questionText),
@@ -1816,12 +1823,13 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         isMultipleChoice: false,
                         explanation: inlineExplanation || explanation || 'Add your explanation here'
                     });
-                    
+
                     questionText = '';
                     choices = [];
                     correctIndices = [];
                     explanation = '';
                     explanationEnded = false;
+                    questionEnded = false;
                     inChoices = false;
                     continue;
                 }
@@ -1877,6 +1885,17 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     }
                     // Set flag so next lines start a new question
                     explanationEnded = true;
+                    questionEnded = false;
+                    continue;
+                }
+
+                // Check for explicit "endquestion" marker to mark end of question label
+                if (line.toLowerCase() === 'endquestion' ||
+                    line.toLowerCase().startsWith('endquestion')) {
+                    // Stop accumulating into questionText - the question label is complete
+                    // Mark that we're ready for choices to start
+                    questionEnded = true;
+                    inChoices = true;
                     continue;
                 }
 
@@ -1918,10 +1937,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
                 // After "End Explanation", accumulate setup text for the next question
                 // This catches lines that fall through all other patterns
-                if (explanationEnded && !inChoices && line) {
+                // Stop accumulating if we've seen "endquestion" marker
+                if (explanationEnded && !inChoices && !questionEnded && line) {
                     // Skip LaTeX section markers and other metadata
                     if (!line.startsWith('\\section') && !line.startsWith('\\subsection')) {
-                        // Build up the next question text from all lines until choices start
+                        // Build up the next question text from all lines until choices start or "endquestion" is seen
                         questionText = questionText ? questionText + ' ' + line : line;
                     }
                 }
