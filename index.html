@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.6</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.7</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1845,6 +1845,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         }).filter(index => index >= 0 && index < choices.length);
                     }
                     inChoices = false;
+                    questionEnded = false; // Reset questionEnded flag after processing choices
                     continue;
                 }
 
@@ -1853,6 +1854,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     line.toLowerCase() === 'explanation') {
                     inChoices = false;
                     explanationEnded = false; // Reset flag when starting new explanation
+                    questionEnded = false; // Reset questionEnded flag when starting explanation
                     explanation = line.replace(/^explanation:\s*/i, '').replace(/^explain:\s*/i, '');
                     if (!explanation || explanation.toLowerCase() === 'explanation') {
                         explanation = '';
