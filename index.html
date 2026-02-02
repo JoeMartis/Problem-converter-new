@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v4.0</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v4.1</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1317,6 +1317,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             text = processedLines.join('\n');
 
+            // Convert markdown-style code to HTML before other processing
+            // Triple backticks for code blocks (must come before single backticks)
+            text = text.replace(/```([^`]+?)```/g, '<pre><code>$1</code></pre>');
+            // Single backticks for inline code
+            text = text.replace(/`([^`]+?)`/g, '<code>$1</code>');
+
             // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre, br, ul, li
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br', 'ul', 'li'];
             let result = text;
@@ -1456,6 +1462,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
             }
 
             text = processedLines.join('\n');
+
+            // Convert markdown-style code to HTML before other processing
+            // Triple backticks for code blocks (must come before single backticks)
+            text = text.replace(/```([^`]+?)```/g, '<pre><code>$1</code></pre>');
+            // Single backticks for inline code
+            text = text.replace(/`([^`]+?)`/g, '<code>$1</code>');
 
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br', 'ul', 'li'];
             let protected = text;
