@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v4.1</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v4.2</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1684,6 +1684,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             let currentLabel = '';
             let explanationEnded = false;
             let questionEnded = false;
+            let pendingAnswer = null; // Store answer info when waiting for explanation
             
             for (let i = startIndex; i < lines.length; i++) {
                 const line = lines[i].trim();
@@ -1799,6 +1800,24 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 const isQuestion = (line.endsWith('?') || line.includes('?') || selectAllPattern.test(line)) && !line.toLowerCase().startsWith('explanation');
 
                 if (isQuestion) {
+                    // Finalize previous pending answer if exists
+                    if (pendingAnswer) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(pendingAnswer.questionText),
+                            answer: pendingAnswer.answerValue,
+                            answerType: pendingAnswer.answerType,
+                            choices: [],
+                            correctIndices: [],
+                            isMultipleChoice: false,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        explanation = '';
+                        pendingAnswer = null;
+                    }
+
                     if (questionText && choices.length > 0) {
                         problemCount++;
                         const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1832,28 +1851,56 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 const answerMatch = line.match(/^Answer:\s*(.+?)(?:Explanation:\s*(.+))?$/i);
                 if (answerMatch && questionText && choices.length === 0) {
+                    // Finalize previous pending answer if exists
+                    if (pendingAnswer) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(pendingAnswer.questionText),
+                            answer: pendingAnswer.answerValue,
+                            answerType: pendingAnswer.answerType,
+                            choices: [],
+                            correctIndices: [],
+                            isMultipleChoice: false,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        explanation = '';
+                        pendingAnswer = null;
+                    }
+
                     const answerValue = answerMatch[1].trim();
                     const inlineExplanation = answerMatch[2] ? answerMatch[2].trim() : '';
                     const isNumerical = /^-?\d+\.?\d*$/.test(answerValue) || /^-?\d*\.?\d+$/.test(answerValue);
 
-                    problemCount++;
-                    const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                    // If we have an inline explanation or accumulated explanation, finalize immediately
+                    if (inlineExplanation || explanation) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            answer: answerValue,
+                            answerType: isNumerical ? 'numerical' : 'text',
+                            choices: [],
+                            correctIndices: [],
+                            isMultipleChoice: false,
+                            explanation: inlineExplanation || explanation || 'Add your explanation here'
+                        });
+                        questionText = '';
+                        explanation = '';
+                    } else {
+                        // No explanation yet - store answer info and wait for "Explanation:" line
+                        pendingAnswer = {
+                            questionText: questionText,
+                            answerValue: answerValue,
+                            answerType: isNumerical ? 'numerical' : 'text'
+                        };
+                        questionText = '';
+                    }
 
-                    problems.push({
-                        title: displayName,
-                        question: cleanText(questionText),
-                        answer: answerValue,
-                        answerType: isNumerical ? 'numerical' : 'text',
-                        choices: [],
-                        correctIndices: [],
-                        isMultipleChoice: false,
-                        explanation: inlineExplanation || explanation || 'Add your explanation here'
-                    });
-
-                    questionText = '';
                     choices = [];
                     correctIndices = [];
-                    explanation = '';
                     explanationEnded = false;
                     questionEnded = false;
                     inChoices = false;
@@ -1932,21 +1979,43 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 const isQuestionSetup = /^(suppose|consider|given|let|assume|if|imagine)\s+/i.test(line);
                 const looksLikeNewQuestion = /^(what|which|why|how|when|where|who|does|is|are|can|should|would|will)\s+/i.test(line);
 
-                if (!inChoices && questionText && choices.length > 0 && !explanationEnded) {
+                // Handle explanation accumulation for both choice-based and answer-based questions
+                const isAccumulatingExplanation = (!inChoices && !explanationEnded) &&
+                                                 ((questionText && choices.length > 0) || pendingAnswer);
+
+                if (isAccumulatingExplanation) {
                     // Stop accumulating explanation if we see a new question setup or question
                     if (isQuestionSetup || looksLikeNewQuestion) {
                         // This line belongs to the next question, not this explanation
                         // Finalize the current problem first
-                        problemCount++;
-                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                        problems.push({
-                            title: displayName,
-                            question: cleanText(questionText),
-                            choices: choices.map(c => cleanText(c.text)),
-                            correctIndices: correctIndices,
-                            isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
-                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                        });
+                        if (pendingAnswer) {
+                            // Finalize pending answer question
+                            problemCount++;
+                            const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                            problems.push({
+                                title: displayName,
+                                question: cleanText(pendingAnswer.questionText),
+                                answer: pendingAnswer.answerValue,
+                                answerType: pendingAnswer.answerType,
+                                choices: [],
+                                correctIndices: [],
+                                isMultipleChoice: false,
+                                explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                            });
+                            pendingAnswer = null;
+                        } else if (questionText && choices.length > 0) {
+                            // Finalize choice-based question
+                            problemCount++;
+                            const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                            problems.push({
+                                title: displayName,
+                                question: cleanText(questionText),
+                                choices: choices.map(c => cleanText(c.text)),
+                                correctIndices: correctIndices,
+                                isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
+                                explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                            });
+                        }
                         // Reset for next problem and start accumulating this line as new question
                         questionText = line;
                         choices = [];
@@ -2030,7 +2099,21 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 }
             }
             
-            if (questionText && choices.length > 0) {
+            // Finalize any remaining problem
+            if (pendingAnswer) {
+                problemCount++;
+                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                problems.push({
+                    title: displayName,
+                    question: cleanText(pendingAnswer.questionText),
+                    answer: pendingAnswer.answerValue,
+                    answerType: pendingAnswer.answerType,
+                    choices: [],
+                    correctIndices: [],
+                    isMultipleChoice: false,
+                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                });
+            } else if (questionText && choices.length > 0) {
                 problemCount++;
                 const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
                 problems.push({
@@ -2042,7 +2125,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
                 });
             }
-            
+
             return {
                 problems: problems,
                 displayNameLabel: displayNameLabel || 'Problem',
