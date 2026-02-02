@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.8</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.9</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1936,9 +1936,21 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 }
                 
                 if (questionText && inChoices) {
-                    // Only process lines that look like choices (start with A., B., C., etc.)
+                    // Process lines that look like choices
                     const choicePattern = /^[A-Z]\.\s*/i;
-                    if (choicePattern.test(line)) {
+                    const isPrefixedChoice = choicePattern.test(line);
+
+                    // Stop treating lines as choices if we hit these markers
+                    const isStopMarker = line.match(/^Correct:\s*/i) ||
+                                        line.toLowerCase().startsWith('explanation:') ||
+                                        line.toLowerCase().startsWith('explain:') ||
+                                        line.toLowerCase() === 'explanation';
+
+                    if (isStopMarker) {
+                        // Don't process as choice, let it be handled by other logic
+                        // Fall through to marker detection below
+                    } else if (isPrefixedChoice) {
+                        // Handle prefixed choices (A., B., C., etc.)
                         const isCorrect = line.toLowerCase().includes('(correct)') ||
                                           line.toLowerCase().includes('(correct answer)') ||
                                           line.includes('**(correct');
@@ -1956,6 +1968,26 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             }
                             choices.push({ text: choiceText, correct: isCorrect });
                         }
+                        continue; // Processed this line as a choice, move to next line
+                    } else if (line && line.length > 0) {
+                        // Handle unprefixed choices (plain text lines)
+                        const isCorrect = line.toLowerCase().includes('(correct)') ||
+                                          line.toLowerCase().includes('(correct answer)') ||
+                                          line.includes('**(correct');
+                        const choiceText = line
+                            .replace(/\*\*\(correct.*?\)\*\*/i, '')
+                            .replace(/\(correct\s*answer\)/i, '')
+                            .replace(/\(correct\)/i, '')
+                            .replace(/\\$/, '')
+                            .trim();
+
+                        if (choiceText) {
+                            if (isCorrect) {
+                                correctIndices.push(choices.length);
+                            }
+                            choices.push({ text: choiceText, correct: isCorrect });
+                        }
+                        continue; // Processed this line as a choice, move to next line
                     }
                 }
 
