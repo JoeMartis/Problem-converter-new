@@ -998,7 +998,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v3.9</span></h1>
+            <h1>OLX Problem Converter <span style="font-size: 0.4em; font-weight: 400; color: var(--text-secondary); -webkit-text-fill-color: var(--text-secondary);">v4.1</span></h1>
             <p class="subtitle">Open edX • Multiple Choice • Problem Bank • LaTeX Support</p>
         </header>
         
@@ -1317,6 +1317,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             text = processedLines.join('\n');
 
+            // Convert markdown-style code to HTML before other processing
+            // Triple backticks for code blocks (must come before single backticks)
+            text = text.replace(/```([^`]+?)```/g, '<pre><code>$1</code></pre>');
+            // Single backticks for inline code
+            text = text.replace(/`([^`]+?)`/g, '<code>$1</code>');
+
             // Allow safe formatting tags: strong, em, u, sup, sub, code, a, b, i, pre, br, ul, li
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br', 'ul', 'li'];
             let result = text;
@@ -1457,6 +1463,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             text = processedLines.join('\n');
 
+            // Convert markdown-style code to HTML before other processing
+            // Triple backticks for code blocks (must come before single backticks)
+            text = text.replace(/```([^`]+?)```/g, '<pre><code>$1</code></pre>');
+            // Single backticks for inline code
+            text = text.replace(/`([^`]+?)`/g, '<code>$1</code>');
+
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br', 'ul', 'li'];
             let protected = text;
 
@@ -1578,7 +1590,22 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 .replace(/\{\.mark\}/g, '')
                 .trim();
         }
-        
+
+        /**
+         * Determines if a problem should be treated as multiple choice or checkbox
+         * based on question text and correct answer count
+         */
+        function isProblemMultipleChoice(questionText, correctIndicesCount) {
+            // Check if question explicitly asks for multiple selections
+            const selectAllPattern = /\(select all that apply\.?\)/i;
+            if (selectAllPattern.test(questionText)) {
+                return false; // Checkbox format for "select all that apply"
+            }
+
+            // Default behavior: single answer = multiple choice, multiple = checkbox
+            return correctIndicesCount <= 1;
+        }
+
         function parseProblems(text) {
             const problems = [];
             
@@ -1671,7 +1698,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             question: cleanText(questionText),
                             choices: choices.map(c => cleanText(c.text)),
                             correctIndices: correctIndices,
-                            isMultipleChoice: correctIndices.length <= 1,
+                            isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
                             explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
                         });
                         questionText = '';
@@ -1696,7 +1723,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             question: cleanText(questionText),
                             choices: choices.map(c => cleanText(c.text)),
                             correctIndices: correctIndices,
-                            isMultipleChoice: correctIndices.length <= 1,
+                            isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
                             explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
                         });
                         questionText = '';
@@ -1726,7 +1753,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             question: cleanText(questionText),
                             choices: choices.map(c => cleanText(c.text)),
                             correctIndices: correctIndices,
-                            isMultipleChoice: correctIndices.length <= 1,
+                            isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
                             explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
                         });
                         choices = [];
@@ -1752,7 +1779,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             question: cleanText(questionText),
                             choices: choices.map(c => cleanText(c.text)),
                             correctIndices: correctIndices,
-                            isMultipleChoice: correctIndices.length <= 1,
+                            isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
                             explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
                         });
                         choices = [];
@@ -1780,7 +1807,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             question: cleanText(questionText),
                             choices: choices.map(c => cleanText(c.text)),
                             correctIndices: correctIndices,
-                            isMultipleChoice: correctIndices.length <= 1,
+                            isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
                             explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
                         });
                         choices = [];
@@ -1874,7 +1901,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             question: cleanText(questionText),
                             choices: choices.map(c => cleanText(c.text)),
                             correctIndices: correctIndices,
-                            isMultipleChoice: correctIndices.length <= 1,
+                            isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
                             explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
                         });
                         // Reset for next problem
@@ -1917,7 +1944,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             question: cleanText(questionText),
                             choices: choices.map(c => cleanText(c.text)),
                             correctIndices: correctIndices,
-                            isMultipleChoice: correctIndices.length <= 1,
+                            isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
                             explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
                         });
                         // Reset for next problem and start accumulating this line as new question
@@ -2011,7 +2038,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     question: cleanText(questionText),
                     choices: choices.map(c => cleanText(c.text)),
                     correctIndices: correctIndices,
-                    isMultipleChoice: correctIndices.length <= 1,
+                    isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
                     explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
                 });
             }
