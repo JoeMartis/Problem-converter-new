@@ -1,8 +1,8 @@
 # Open edX OLX Problem Converter
 
-A powerful, production-ready browser-based tool for converting educational problem sets into Open edX OLX (Open Learning XML) format. This application streamlines the process of creating course content for the Open edX platform, supporting multiple question types, rich text formatting, and advanced mathematical equation rendering.
+A powerful, production-ready browser-based tool for converting educational problem sets into Open edX OLX (Open Learning XML) format. This application streamlines the process of creating **Open edX Library v1** content for the Open edX platform, supporting multiple question types, rich text formatting, and advanced mathematical equation rendering.
 
-**Version 4.3** | **50+ Bug Fixes & Enhancements** | **Saves 20-40 Hours Per Course**
+**Version 4.3** | **50+ Bug Fixes & Enhancements**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -28,7 +28,7 @@ A powerful, production-ready browser-based tool for converting educational probl
 - ✏️ **In-Place Editing** - Edit questions, choices, and explanations directly
 - 📊 **Statistics Dashboard** - Track problem counts and warnings
 - 📦 **Batch Processing** - Convert multiple problems at once
-- 💾 **Library Export** - Download as organized ZIP with course structure
+- 💾 **Library Export** - Download as organized ZIP with Open edX Library v1 structure
 - 📋 **Copy to Clipboard** - Quick OLX export
 - 🎨 **Modern UI** - Clean, responsive design
 - 🎯 **Smart Attempts Policy** - Automatic retry configuration based on problem type
@@ -65,35 +65,6 @@ A powerful, production-ready browser-based tool for converting educational probl
 - **86 lines refactored** for better performance and maintainability
 - **15+ parsing edge cases** resolved
 - **3 major format variations** now supported
-
-## 💰 Time & Cost Savings
-
-### Manual OLX Creation vs. Problem Converter
-
-| Task | Manual Method | With Converter | Time Saved |
-|------|---------------|----------------|------------|
-| **Single Problem** | 10-15 minutes | 30 seconds | ~95% faster |
-| **10 Problems** | 2-3 hours | 5 minutes | ~97% faster |
-| **Course (100 problems)** | 25-30 hours | 50 minutes | **~96% time reduction** |
-| **Large Course (200 problems)** | 50-60 hours | 100 minutes | **~97% time reduction** |
-
-### Real-World Impact
-- **Typical Course Creation:** Save **20-40 hours** of manual XML coding
-- **Educational Institution:** Save **hundreds of hours** annually across multiple courses
-- **Cost Savings:** At $50/hour, save **$1,000-$2,000 per course**
-- **Error Reduction:** Eliminate 90%+ of manual XML syntax errors
-- **Quality Improvement:** More time for content refinement vs. technical formatting
-
-### What This Tool Eliminates
-❌ Manual XML tag writing
-❌ Debugging malformed XML
-❌ Copy-paste errors
-❌ Inconsistent formatting
-❌ LaTeX delimiter mistakes
-❌ Missing closing tags
-❌ Incorrect OLX structure
-
-✅ **Result:** Focus on pedagogy, not syntax
 
 ## 🚀 Quick Start
 
@@ -286,7 +257,7 @@ $$ \int_0^1 x^2 dx = \frac{1}{3} $$
 3. **Export**
    - **Copy OLX** - Copy XML to clipboard for manual use
    - **Download** - Get plain OLX file
-   - **Download Library** - Get complete course structure as ZIP
+   - **Download Library** - Get complete Open edX Library v1 structure as ZIP
 
 ## 📊 Statistics & Validation
 
