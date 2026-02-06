@@ -1040,7 +1040,6 @@
             <button class="secondary" onclick="loadSample()"><span>Load Sample</span></button>
             <button class="secondary" onclick="document.getElementById('fileInput').click()"><span>Upload File</span></button>
             <input type="file" id="fileInput" accept=".txt,.docx" style="display: none;" onchange="handleFileUpload(event)">
-            <button class="secondary" onclick="showChuckNorrisQuote()" style="margin-left: 20px;"><span>😄 Chuck Norris Quote</span></button>
             <div class="toggle-container" style="margin-left: auto;">
                 <span class="toggle-label">Show Preview</span>
                 <div class="toggle active" id="previewToggle" onclick="togglePreview()">
@@ -1219,20 +1218,6 @@ Explanation: Sales by category represents distinct groups."></textarea>
             <div class="link-dialog-buttons">
                 <button class="secondary" onclick="closeLatexDialog()"><span>Cancel</span></button>
                 <button onclick="insertLatex()"><span>Insert Equation</span></button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Chuck Norris Quote Dialog -->
-    <div class="link-dialog-overlay" id="chuckNorrisDialog">
-        <div class="link-dialog">
-            <h3>😄 Chuck Norris Quote</h3>
-            <div id="chuckNorrisQuoteContent" style="margin: 20px 0; padding: 20px; background: var(--bg-tertiary); border-radius: 8px; border-left: 4px solid var(--accent-cyan); font-size: 1.1em; line-height: 1.6; min-height: 80px; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--text-primary);">
-                <span style="opacity: 0.5;">Loading...</span>
-            </div>
-            <div class="link-dialog-buttons">
-                <button class="secondary" onclick="closeChuckNorrisDialog()"><span>Close</span></button>
-                <button onclick="fetchNewChuckNorrisQuote()"><span>Another Quote</span></button>
             </div>
         </div>
     </div>
@@ -2785,50 +2770,6 @@ Explanation: Sales by category represents distinct groups."></textarea>
             }
 
             return { valid: true };
-        }
-
-        // Chuck Norris Quote Functions
-        async function showChuckNorrisQuote() {
-            const dialog = document.getElementById('chuckNorrisDialog');
-            if (!dialog) {
-                console.error('Chuck Norris dialog not found');
-                return;
-            }
-            dialog.classList.add('visible');
-            await fetchNewChuckNorrisQuote();
-        }
-
-        async function fetchNewChuckNorrisQuote() {
-            const quoteContent = document.getElementById('chuckNorrisQuoteContent');
-            if (!quoteContent) {
-                console.error('Chuck Norris quote content element not found');
-                return;
-            }
-
-            quoteContent.innerHTML = '<span style="opacity: 0.5;">Loading...</span>';
-
-            try {
-                const response = await fetch('https://api.chucknorris.io/jokes/random');
-                if (!response.ok) {
-                    throw new Error('Failed to fetch quote');
-                }
-                const data = await response.json();
-                if (data && data.value) {
-                    quoteContent.innerHTML = `<span>${escapeHtml(data.value)}</span>`;
-                } else {
-                    quoteContent.innerHTML = '<span style="color: #ff5555;">Invalid quote data received.</span>';
-                }
-            } catch (error) {
-                quoteContent.innerHTML = '<span style="color: #ff5555;">Error loading quote. Please try again.</span>';
-                console.error('Chuck Norris API error:', error);
-            }
-        }
-
-        function closeChuckNorrisDialog() {
-            const dialog = document.getElementById('chuckNorrisDialog');
-            if (dialog) {
-                dialog.classList.remove('visible');
-            }
         }
 
         function insertLatex() {
