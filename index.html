@@ -1231,13 +1231,77 @@ Explanation: Sales by category represents distinct groups."></textarea>
         let editListenersInitialized = false;
         
         function escapeXml(str) {
-            if (!str) return '';
-            return str
+            if (str === null || str === undefined) return '';
+            return String(str)
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&apos;');
+        }
+
+        // Allowlist-based HTML sanitizer for contenteditable content and
+        // untrusted HTML from Mammoth. Preserves formatting tags we support.
+        const SANITIZE_ALLOWED_TAGS = new Set([
+            'STRONG', 'EM', 'U', 'SUP', 'SUB', 'CODE', 'A', 'B', 'I',
+            'PRE', 'BR', 'UL', 'OL', 'LI', 'P', 'SPAN', 'DIV',
+            'H1', 'H2', 'H3', 'H4', 'H5', 'H6'
+        ]);
+        const SANITIZE_ALLOWED_ATTRS = {
+            'A': new Set(['href', 'target', 'rel']),
+            'CODE': new Set(['class', 'data-language'])
+        };
+
+        function sanitizeHtml(html) {
+            if (html === null || html === undefined) return '';
+            const template = document.createElement('template');
+            template.innerHTML = String(html);
+            sanitizeNode(template.content);
+            return template.innerHTML;
+        }
+
+        const SANITIZE_DROP_SUBTREE = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'FORM']);
+
+        function sanitizeNode(root) {
+            const walker = [];
+            const collect = (node) => {
+                for (let i = node.childNodes.length - 1; i >= 0; i--) {
+                    walker.push(node.childNodes[i]);
+                }
+            };
+            collect(root);
+            while (walker.length) {
+                const node = walker.pop();
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    const tag = node.tagName;
+                    if (SANITIZE_DROP_SUBTREE.has(tag)) {
+                        node.parentNode.removeChild(node);
+                        continue;
+                    }
+                    if (!SANITIZE_ALLOWED_TAGS.has(tag)) {
+                        const parent = node.parentNode;
+                        while (node.firstChild) parent.insertBefore(node.firstChild, node);
+                        parent.removeChild(node);
+                        continue;
+                    }
+                    const allowedAttrs = SANITIZE_ALLOWED_ATTRS[tag] || new Set();
+                    for (let i = node.attributes.length - 1; i >= 0; i--) {
+                        const attr = node.attributes[i];
+                        const name = attr.name.toLowerCase();
+                        if (!allowedAttrs.has(name)) {
+                            node.removeAttribute(attr.name);
+                            continue;
+                        }
+                        if (name === 'href') {
+                            const value = attr.value.trim().toLowerCase();
+                            if (value.startsWith('javascript:') || value.startsWith('data:') || value.startsWith('vbscript:')) {
+                                node.removeAttribute(attr.name);
+                            }
+                        }
+                    }
+                    collect(node);
+                }
+            }
         }
 
         function escapeHtml(str) {
@@ -1278,7 +1342,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         processedLines.push('<ul>');
                         inList = true;
                     }
-                    processedLines.push(`<li>${bulletContent}</li>`);
+                    processedLines.push(`<li>${escapeHtml(bulletContent)}</li>`);
                 } else {
                     if (inList && line.trim() === '') {
                         // Empty line ends the list
@@ -1424,7 +1488,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         processedLines.push('<ul>');
                         inList = true;
                     }
-                    processedLines.push(`<li>${bulletContent}</li>`);
+                    processedLines.push(`<li>${escapeXml(bulletContent)}</li>`);
                 } else {
                     if (inList && line.trim() === '') {
                         // Empty line ends the list
@@ -1573,7 +1637,44 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 .replace(/\*\*/g, '')
                 .replace(/\{\.underline\}/g, '')
                 .replace(/\{\.mark\}/g, '')
+                // Drop empty emphasis wrappers left behind after marker removal.
+                .replace(/<(strong|em|u|b|i|sup|sub)>\s*<\/\1>/gi, '')
                 .trim();
+        }
+
+        // Produce a filesystem-safe filename while preserving Unicode letters
+        // and digits. Falls back to ASCII-only when Unicode property classes
+        // aren't supported.
+        // Greek / Cyrillic uppercase letters that look identical to Latin A-Z.
+        // Used to normalize "Correct: A" lines pasted from Word/Greek keyboards.
+        const LATIN_LOOKALIKES = {
+            'Α':'A','Β':'B','Ε':'E','Ζ':'Z','Η':'H','Ι':'I','Κ':'K','Μ':'M',
+            'Ν':'N','Ο':'O','Ρ':'P','Τ':'T','Υ':'Y','Χ':'X',
+            'А':'A','В':'B','Е':'E','К':'K','М':'M','Н':'H','О':'O','Р':'P',
+            'С':'C','Т':'T','У':'Y','Х':'X'
+        };
+
+        function normalizeCorrectLetters(str) {
+            if (!str) return '';
+            // NFKC handles full-width A-Z; explicit map covers Greek/Cyrillic.
+            let s;
+            try { s = str.normalize('NFKC'); } catch (e) { s = str; }
+            s = s.toUpperCase();
+            return s.replace(/./g, ch => LATIN_LOOKALIKES[ch] || ch);
+        }
+
+        function makeSafeFilename(name) {
+            if (!name) return 'library';
+            const trimmed = String(name).trim().replace(/\s+/g, '_');
+            let safe;
+            try {
+                safe = trimmed.replace(/[^\p{L}\p{N}_-]/gu, '_');
+            } catch (e) {
+                safe = trimmed.replace(/[^a-zA-Z0-9_-]/g, '_');
+            }
+            // Avoid leading dots / reserved names; cap length
+            safe = safe.replace(/^\.+/, '_').slice(0, 100);
+            return safe || 'library';
         }
 
         /**
@@ -1591,11 +1692,110 @@ Explanation: Sales by category represents distinct groups."></textarea>
             return correctIndicesCount <= 1;
         }
 
+        // Mammoth (Word .docx -> HTML) often wraps markers like "(correct)" or
+        // "Explanation" in <strong>...</strong>, sometimes across a newline.
+        // Normalize so marker detection works against plain text without
+        // destroying intentional emphasis inside question / choice text.
+        function preNormalizeEmphasis(text) {
+            if (!text) return text;
+
+            // Join emphasis tags whose content spans newlines:
+            // "<strong>(correct)\n</strong>" -> "<strong>(correct)</strong>".
+            for (let i = 0; i < 4; i++) {
+                const before = text;
+                text = text.replace(
+                    /<(strong|em|u|b|i|sup|sub)>([^<]*?)\s*\n\s*<\/\1>/gi,
+                    '<$1>$2</$1>'
+                );
+                if (text === before) break;
+            }
+
+            // Unwrap emphasis tags whose inner content begins with a known
+            // section marker (Correct, Answer, Explanation) or is a Q-style
+            // label, so pattern matching on plain text keeps working when
+            // authors bold the whole marker line such as
+            // "<strong>Correct: B</strong>" or "<strong>Explanation: ...</strong>".
+            // Intentional emphasis inside ordinary question / choice text is
+            // left alone.
+            text = text.replace(
+                /<(strong|em|u|b|i)>([^<]{1,2000})<\/\1>/gi,
+                (match, tag, content) => {
+                    const stripped = content.trim();
+                    if (/^\(correct(\s+answer)?\)$/i.test(stripped) ||
+                        /^(Explanation|Explain|Answer|Correct)\s*(:|$)/i.test(stripped) ||
+                        /^Q\d+[-–—][A-Za-z0-9]+\s*(\(.*\))?$/.test(stripped)) {
+                        return content;
+                    }
+                    return match;
+                }
+            );
+
+            // Remove empty emphasis tag pairs left over after marker removal
+            // (e.g. "<strong>(correct)</strong>" -> "<strong></strong>" -> "").
+            text = text.replace(/<(strong|em|u|b|i|sup|sub)>\s*<\/\1>/gi, '');
+
+            return text;
+        }
+
+        // Turn LaTeX-labelled multiple-choice math into "X. <latex>" lines that
+        // the ordinary choice-parser already understands. Handles two common
+        // authoring patterns seen in real .docx sources.
+        function normalizeLatexChoices(text) {
+            if (!text) return text;
+
+            // Pattern 1: a single align / align* / aligned environment that
+            // contains multiple "\mathbf{(X)}" labels. Split by label.
+            text = text.replace(
+                /\\begin\{(align\*?|aligned)\}([\s\S]*?)\\end\{\1\}/g,
+                (match, env, inner) => {
+                    const labelRe = /\\mathbf\{\(([A-Z])\)\}/g;
+                    const labels = [];
+                    let m;
+                    while ((m = labelRe.exec(inner)) !== null) {
+                        labels.push({ letter: m[1], start: m.index, end: m.index + m[0].length });
+                    }
+                    if (labels.length < 2) return match;
+                    const out = [];
+                    for (let i = 0; i < labels.length; i++) {
+                        const from = labels[i].end;
+                        const to = i + 1 < labels.length ? labels[i + 1].start : inner.length;
+                        let content = inner.substring(from, to)
+                            .replace(/\s*\n\s*/g, ' ')       // flatten so the choice fits on one line
+                            .replace(/\s+/g, ' ')
+                            .replace(/\\\\\s*$/, '')         // drop trailing alignment separator
+                            .trim();
+                        if (!content) continue;
+                        out.push(labels[i].letter + '. $$\\begin{aligned} ' + content + ' \\end{aligned}$$');
+                    }
+                    return '\n' + out.join('\n') + '\n';
+                }
+            );
+
+            // Pattern 2: "$$...\mathbf{(X)}...$$" blocks each carrying one label.
+            // Rewrite to "X. $$...$$" lines so the choice-letter pattern fires.
+            text = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
+                const labelMatch = inner.match(/\\mathbf\{\(([A-Z])\)\}/);
+                if (!labelMatch) return match;
+                const letter = labelMatch[1];
+                const cleaned = inner
+                    .replace(/\\mathbf\{\([A-Z]\)\}\s*/, '')
+                    .replace(/\s*\n\s*/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                return '\n' + letter + '. $$' + cleaned + '$$\n';
+            });
+
+            return text;
+        }
+
         function parseProblems(text) {
             const problems = [];
-            
-            let normalizedText = text
-                .replace(/(\d+\.\s+[A-Z])/g, '\n$1')
+
+            // Split "1. What ... 2. What ..." runs into separate lines, but do NOT
+            // split inside expressions like "x=0. Which" where the number is
+            // attached to a previous token (avoid false positives on math).
+            let normalizedText = normalizeLatexChoices(preNormalizeEmphasis(text))
+                .replace(/(^|\s)(\d+\.\s+[A-Z])/g, '$1\n$2')
                 .replace(/(Part\s+\d+\s+Question\s+\d+)/gi, '\n\n$1\n')
                 .replace(/(\*\*Original:)/gi, '\n\n$1');
             
@@ -1648,11 +1848,18 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         startIndex = i + 1;
                         break;
                     }
-                    
+
                     if (line.match(/^Part\s+\d+$/i)) {
                         continue;
                     }
-                    
+
+                    // Detect "Q-style" labels like "Q1-A", "Q2-B (Existing)" -
+                    // break so the main loop can treat them as question labels.
+                    if (line.match(/^Q\d+-[A-Za-z0-9]+(\s*\(.*\))?$/)) {
+                        startIndex = i;
+                        break;
+                    }
+
                     if (line.endsWith('?') || line.match(/^\d+\.\s+/) || line.match(/^Original:/i)) {
                         startIndex = i;
                         break;
@@ -1670,6 +1877,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             let explanationEnded = false;
             let questionEnded = false;
             let pendingAnswer = null; // Store answer info when waiting for explanation
+            let awaitingQuestionBody = false; // True after a label finalizes a problem, until question body starts
             
             for (let i = startIndex; i < lines.length; i++) {
                 const line = lines[i].trim();
@@ -1723,7 +1931,59 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     currentLabel = line.trim();
                     continue;
                 }
-                
+
+                // Section headers like "Q1 – Material availability constraints"
+                // (note: space-dash-space, en-dash or hyphen) are noise between
+                // problems and must not be absorbed into the previous explanation.
+                if (/^Q\d+\s+[-–—]\s+/.test(line)) {
+                    continue;
+                }
+
+                // Q-style label on its own line (e.g. "Q1-A", "Q2-B (Existing)").
+                // Finalize any in-progress problem and use the label as the next
+                // problem's title. Hyphen or en-dash/em-dash accepted between the
+                // number and the letter, as long as there are no surrounding spaces.
+                const qLabelMatch = line.match(/^(Q\d+[-–—][A-Za-z0-9]+)\s*(\(.*\))?$/);
+                if (qLabelMatch) {
+                    if (pendingAnswer) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(pendingAnswer.questionText),
+                            answer: pendingAnswer.answerValue,
+                            answerType: pendingAnswer.answerType,
+                            choices: [],
+                            correctIndices: [],
+                            isMultipleChoice: false,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        pendingAnswer = null;
+                        explanation = '';
+                    } else if (questionText && choices.length > 0) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                    }
+                    questionText = '';
+                    choices = [];
+                    correctIndices = [];
+                    explanation = '';
+                    explanationEnded = false;
+                    questionEnded = false;
+                    inChoices = false;
+                    awaitingQuestionBody = true;
+                    currentLabel = qLabelMatch[1].trim();
+                    continue;
+                }
+
                 // Skip blank lines - don't finalize on them to allow blank lines between choices
                 if (!line) {
                     continue;
@@ -1821,20 +2081,29 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         questionEnded = false;
                     }
 
-                    // Append to existing questionText if we've been accumulating setup text after "End Explanation"
-                    if (explanationEnded && questionText) {
+                    // Append to existing questionText if we've been accumulating setup text.
+                    // This covers both post-"End Explanation" accumulation and ordinary
+                    // multi-line question bodies where only the final line ends with "?".
+                    const stillAccumulating = questionText && choices.length === 0 && !pendingAnswer;
+                    if ((explanationEnded || stillAccumulating) && questionText) {
                         questionText = questionText + ' ' + line;
-                        // Reset flags now that we've started the question proper
                         explanationEnded = false;
                         questionEnded = false;
                     } else {
                         questionText = line;
                     }
+                    awaitingQuestionBody = false;
                     inChoices = true;
                     continue;
                 }
                 
-                const answerMatch = line.match(/^Answer:\s*(.+?)(?:Explanation:\s*(.+))?$/i);
+                // Split on "Explanation:" only when it appears as a section marker
+                // (capital E, preceded by whitespace, followed by space + content).
+                // This avoids false splits when "explanation:" appears inside the answer text.
+                let answerMatch = line.match(/^Answer:\s*(.+?)\s+Explanation:\s+(.+)$/);
+                if (!answerMatch) {
+                    answerMatch = line.match(/^Answer:\s*(.+)$/i);
+                }
                 if (answerMatch && questionText && choices.length === 0) {
                     // Finalize previous pending answer if exists
                     if (pendingAnswer) {
@@ -1856,7 +2125,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
                     const answerValue = answerMatch[1].trim();
                     const inlineExplanation = answerMatch[2] ? answerMatch[2].trim() : '';
-                    const isNumerical = /^-?\d+\.?\d*$/.test(answerValue) || /^-?\d*\.?\d+$/.test(answerValue);
+                    const isNumerical = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(answerValue);
 
                     // If we have an inline explanation or accumulated explanation, finalize immediately
                     if (inlineExplanation || explanation) {
@@ -1892,16 +2161,27 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
 
-                // Handle "Correct: A, C" format
-                const correctMatch = line.match(/^Correct:\s*(.+)/i);
+                // Handle "Correct: A, C" format. Also accept "Answer: A" used
+                // the same way after a multiple-choice block (some authors
+                // write "Answer: B" instead of "Correct: B").
+                const correctMatch = line.match(/^(Correct|Answer):\s*(.+)/i);
                 if (correctMatch && questionText && choices.length > 0) {
-                    const correctLetters = correctMatch[1].trim();
-                    // Parse letters (A, B, C, etc.) and convert to indices
-                    const letterMatches = correctLetters.match(/[A-Z]/gi);
-                    if (letterMatches) {
-                        correctIndices = letterMatches.map(letter => {
-                            return letter.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
-                        }).filter(index => index >= 0 && index < choices.length);
+                    const rawLetters = correctMatch[2].trim();
+                    // Normalize lookalike characters (Greek Α, full-width Ａ, etc.)
+                    // before extracting letters.
+                    const normalized = normalizeCorrectLetters(rawLetters);
+                    const letterMatches = normalized.match(/[A-Z]/g);
+                    if (letterMatches && letterMatches.length > 0) {
+                        const parsedIndices = letterMatches.map(letter => {
+                            return letter.charCodeAt(0) - 'A'.charCodeAt(0);
+                        });
+                        const outOfRange = parsedIndices.filter(idx => idx < 0 || idx >= choices.length);
+                        if (outOfRange.length > 0) {
+                            console.warn(`Correct: letters reference indices beyond ${choices.length} choices - dropped:`, outOfRange);
+                        }
+                        correctIndices = parsedIndices.filter(index => index >= 0 && index < choices.length);
+                    } else if (rawLetters) {
+                        console.warn(`Correct: line contains no recognizable A-Z letters - ignored:`, JSON.stringify(rawLetters));
                     }
                     inChoices = false;
                     questionEnded = false; // Reset questionEnded flag after processing choices
@@ -1914,7 +2194,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     inChoices = false;
                     explanationEnded = false; // Reset flag when starting new explanation
                     questionEnded = false; // Reset questionEnded flag when starting explanation
-                    explanation = line.replace(/^explanation:\s*/i, '').replace(/^explain:\s*/i, '');
+                    // Strip any repeated "Explanation:" / "Explain:" prefixes
+                    let stripped = line;
+                    let prev;
+                    do {
+                        prev = stripped;
+                        stripped = stripped.replace(/^(explanation|explain):\s*/i, '');
+                    } while (stripped !== prev);
+                    explanation = stripped;
                     if (!explanation || explanation.toLowerCase() === 'explanation') {
                         explanation = '';
                     }
@@ -2017,8 +2304,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 }
                 
                 if (questionText && inChoices) {
-                    // Process lines that look like choices
-                    const choicePattern = /^[A-Z]\.\s*/i;
+                    awaitingQuestionBody = false;
+                    // Process lines that look like choices. Accept Latin A-Z,
+                    // Greek Α-Ω and Cyrillic А-Я as prefix letters because
+                    // Word/PDF paste often substitutes lookalikes.
+                    const choicePattern = /^[A-ZΑ-ΩА-Я]\.\s*/iu;
                     const isPrefixedChoice = choicePattern.test(line);
 
                     // Stop treating lines as choices if we hit these markers
@@ -2036,7 +2326,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                                           line.toLowerCase().includes('(correct answer)') ||
                                           line.includes('**(correct');
                         const choiceText = line
-                            .replace(/^[A-Z]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes
+                            .replace(/^[A-ZΑ-ΩА-Я]\.\s*/iu, '')  // Strip "A.", "Α.", "С." etc.
                             .replace(/\*\*\(correct.*?\)\*\*/i, '')
                             .replace(/\(correct\s*answer\)/i, '')
                             .replace(/\(correct\)/i, '')
@@ -2072,10 +2362,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     }
                 }
 
-                // After "End Explanation" or after detecting question setup, accumulate setup text for the next question
-                // This catches lines that fall through all other patterns
-                // Stop accumulating if we've seen "endquestion" marker
-                if ((explanationEnded || (questionText && !inChoices && choices.length === 0)) && !questionEnded && line) {
+                // After "End Explanation" or after detecting question setup, accumulate setup text for the next question.
+                // This catches lines that fall through all other patterns.
+                // Also accumulate when awaitingQuestionBody is true (set right after a
+                // Q-label or part-question label) so that multi-line setup before the "?"
+                // line is preserved.
+                const canAccumulateSetup = (explanationEnded ||
+                                            awaitingQuestionBody ||
+                                            (questionText && !inChoices && choices.length === 0)) &&
+                                           !questionEnded && line;
+                if (canAccumulateSetup) {
                     // Skip LaTeX section markers and other metadata
                     if (!line.startsWith('\\section') && !line.startsWith('\\subsection')) {
                         // Build up the next question text from all lines until choices start or "endquestion" is seen
@@ -2331,6 +2627,15 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 return;
             }
 
+            // Clamp currentPreviewIndex to valid range in case problems shrank
+            if (problems.length === 0) {
+                currentPreviewIndex = 0;
+            } else if (currentPreviewIndex >= problems.length) {
+                currentPreviewIndex = problems.length - 1;
+            } else if (currentPreviewIndex < 0) {
+                currentPreviewIndex = 0;
+            }
+
             countBadge.textContent = `${problems.length} Problem${problems.length !== 1 ? 's' : ''}`;
 
             if (problems.length === 0) {
@@ -2496,7 +2801,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             if (isNaN(problemIndex) || !currentProblems[problemIndex]) return;
             if (choiceIndex !== null && isNaN(choiceIndex)) return;
 
-            const content = el.innerHTML;
+            const content = sanitizeHtml(el.innerHTML);
 
             if (field === 'question') {
                 currentProblems[problemIndex].question = content;
@@ -2507,7 +2812,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     currentProblems[problemIndex].choices[choiceIndex] = content;
                 }
             } else if (field === 'answer') {
-                currentProblems[problemIndex].answer = content;
+                // Answers should be plain text - use textContent to strip any HTML
+                currentProblems[problemIndex].answer = el.textContent;
             }
             
             // Update OLX output
@@ -2519,11 +2825,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function handleBlur(e) {
-            setTimeout(() => {
-                if (!document.querySelector('.editable:focus')) {
-                    document.getElementById('editIndicator').style.display = 'none';
+            // Defer until after the focus transfer completes, then check whether
+            // focus landed on another editable. Using relatedTarget alone misses
+            // focus moves triggered via mousedown on a non-editable.
+            requestAnimationFrame(() => {
+                const active = document.activeElement;
+                if (!active || !active.classList || !active.classList.contains('editable')) {
+                    const indicator = document.getElementById('editIndicator');
+                    if (indicator) indicator.style.display = 'none';
                 }
-            }, 100);
+            });
         }
         
         function handleKeydown(e) {
@@ -3024,42 +3335,85 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function copyOutput() {
             const output = document.getElementById('output');
             const text = output.textContent;
-            
+
             if (!text || text === 'OLX output will appear here...') {
                 showStatus('No output to copy', 'error');
                 return;
             }
-            
-            navigator.clipboard.writeText(text).then(() => {
-                showStatus('Copied to clipboard!', 'success');
-            }).catch(err => {
-                showStatus('Failed to copy', 'error');
-            });
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showStatus('Copied to clipboard!', 'success');
+                }).catch(() => {
+                    copyFallback(text);
+                });
+            } else {
+                copyFallback(text);
+            }
+        }
+
+        function copyFallback(text) {
+            // Legacy fallback for insecure contexts / older browsers
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            let ok = false;
+            try {
+                ok = document.execCommand('copy');
+            } catch (e) {
+                ok = false;
+            }
+            document.body.removeChild(ta);
+            showStatus(ok ? 'Copied to clipboard!' : 'Failed to copy - copy manually', ok ? 'success' : 'error');
         }
         
+        let downloadInProgress = false;
+
         function downloadOutput() {
+            if (downloadInProgress) return;
             const output = document.getElementById('output');
             const text = output.textContent;
-            
+
             if (!text || text === 'OLX output will appear here...') {
                 showStatus('No output to download', 'error');
                 return;
             }
-            
-            const blob = new Blob([text], { type: 'text/xml' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'problems.xml';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            showStatus('Downloaded problems.xml', 'success');
+
+            downloadInProgress = true;
+            let url;
+            try {
+                const blob = new Blob([text], { type: 'text/xml' });
+                url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'problems.xml';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                showStatus('Downloaded problems.xml', 'success');
+            } catch (err) {
+                showStatus('Error creating download: ' + err.message, 'error');
+                console.error(err);
+            } finally {
+                if (url) URL.revokeObjectURL(url);
+                setTimeout(() => { downloadInProgress = false; }, 500);
+            }
         }
         
         function generateUUID() {
+            if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+                return crypto.randomUUID().replace(/-/g, '');
+            }
+            if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+                const bytes = new Uint8Array(16);
+                crypto.getRandomValues(bytes);
+                return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+            }
+            // Last-resort fallback (dev only) - Math.random is not crypto safe
             return 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'.replace(/x/g, function() {
                 return Math.floor(Math.random() * 16).toString(16);
             });
@@ -3136,12 +3490,17 @@ Explanation: Sales by category represents distinct groups."></textarea>
             return parts.join('\n');
         }
         
+        let libraryDownloadInProgress = false;
+
         async function downloadLibrary() {
+            if (libraryDownloadInProgress) return;
             if (currentProblems.length === 0) {
                 showStatus('No problems to export. Convert problems first.', 'error');
                 return;
             }
-            
+
+            libraryDownloadInProgress = true;
+            let url;
             try {
                 const input = document.getElementById('input').value;
                 const result = parseProblems(input);
@@ -3162,7 +3521,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 libraryXML += `</library>`;
                 
                 const zip = new JSZip();
-                const safeLibraryId = result.libraryId.replace(/[^a-zA-Z0-9_-]/g, '_');
+                const safeLibraryId = makeSafeFilename(result.libraryId);
                 const library = zip.folder(safeLibraryId);
                 const problemFolder = library.folder('problem');
                 const policiesFolder = library.folder('policies');
@@ -3180,19 +3539,21 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     compressionOptions: { level: 9 }
                 });
                 
-                const url = URL.createObjectURL(content);
+                url = URL.createObjectURL(content);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `${safeLibraryId}.zip`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
+
                 showStatus(`Downloaded ${safeLibraryId}.zip with ${currentProblems.length} problems (with edits)`, 'success');
             } catch (error) {
                 showStatus(`Error creating library: ${error.message}`, 'error');
                 console.error(error);
+            } finally {
+                if (url) URL.revokeObjectURL(url);
+                setTimeout(() => { libraryDownloadInProgress = false; }, 500);
             }
         }
         
@@ -3202,10 +3563,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
             document.getElementById('status').style.display = 'none';
             currentProblems = [];
             currentPreviewIndex = 0;
-            
+            showAllMode = true;
+
             document.querySelectorAll('.stat-value').forEach(el => el.textContent = '0');
             document.getElementById('stat-warnings').classList.remove('warning', 'error');
-            
+
             renderPreview([]);
         }
         
@@ -3269,8 +3631,11 @@ Explanation: Basic arithmetic shows that two plus two equals four.`;
                     })
                         .then(function(result) {
                             const html = result.value;
-                            const tempDiv = document.createElement('div');
-                            tempDiv.innerHTML = html;
+                            // Parse via DOMParser so images/scripts aren't fetched/executed
+                            const parsedDoc = new DOMParser().parseFromString(
+                                `<!doctype html><body>${html}</body>`, 'text/html');
+                            const tempDiv = parsedDoc.body;
+                            sanitizeNode(tempDiv);
                             
                             let text = '';
                             const processNode = (node) => {
@@ -3465,6 +3830,24 @@ Explanation: Basic arithmetic shows that two plus two equals four.`;
                 }
             });
         }
+
+        // Global Escape handler closes whichever dialog is open so the
+        // behavior is consistent regardless of what has focus.
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Escape') return;
+            const dialogs = [
+                { el: document.getElementById('linkDialog'), close: closeLinkDialog },
+                { el: document.getElementById('codeDialog'), close: closeCodeDialog },
+                { el: document.getElementById('latexDialog'), close: closeLatexDialog }
+            ];
+            for (const d of dialogs) {
+                if (d.el && d.el.classList.contains('visible')) {
+                    d.close();
+                    e.preventDefault();
+                    return;
+                }
+            }
+        });
     </script>
 </body>
 </html>
