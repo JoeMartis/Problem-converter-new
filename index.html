@@ -1231,13 +1231,77 @@ Explanation: Sales by category represents distinct groups."></textarea>
         let editListenersInitialized = false;
         
         function escapeXml(str) {
-            if (!str) return '';
-            return str
+            if (str === null || str === undefined) return '';
+            return String(str)
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&apos;');
+        }
+
+        // Allowlist-based HTML sanitizer for contenteditable content and
+        // untrusted HTML from Mammoth. Preserves formatting tags we support.
+        const SANITIZE_ALLOWED_TAGS = new Set([
+            'STRONG', 'EM', 'U', 'SUP', 'SUB', 'CODE', 'A', 'B', 'I',
+            'PRE', 'BR', 'UL', 'OL', 'LI', 'P', 'SPAN', 'DIV',
+            'H1', 'H2', 'H3', 'H4', 'H5', 'H6'
+        ]);
+        const SANITIZE_ALLOWED_ATTRS = {
+            'A': new Set(['href', 'target', 'rel']),
+            'CODE': new Set(['class', 'data-language'])
+        };
+
+        function sanitizeHtml(html) {
+            if (html === null || html === undefined) return '';
+            const template = document.createElement('template');
+            template.innerHTML = String(html);
+            sanitizeNode(template.content);
+            return template.innerHTML;
+        }
+
+        const SANITIZE_DROP_SUBTREE = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'FORM']);
+
+        function sanitizeNode(root) {
+            const walker = [];
+            const collect = (node) => {
+                for (let i = node.childNodes.length - 1; i >= 0; i--) {
+                    walker.push(node.childNodes[i]);
+                }
+            };
+            collect(root);
+            while (walker.length) {
+                const node = walker.pop();
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    const tag = node.tagName;
+                    if (SANITIZE_DROP_SUBTREE.has(tag)) {
+                        node.parentNode.removeChild(node);
+                        continue;
+                    }
+                    if (!SANITIZE_ALLOWED_TAGS.has(tag)) {
+                        const parent = node.parentNode;
+                        while (node.firstChild) parent.insertBefore(node.firstChild, node);
+                        parent.removeChild(node);
+                        continue;
+                    }
+                    const allowedAttrs = SANITIZE_ALLOWED_ATTRS[tag] || new Set();
+                    for (let i = node.attributes.length - 1; i >= 0; i--) {
+                        const attr = node.attributes[i];
+                        const name = attr.name.toLowerCase();
+                        if (!allowedAttrs.has(name)) {
+                            node.removeAttribute(attr.name);
+                            continue;
+                        }
+                        if (name === 'href') {
+                            const value = attr.value.trim().toLowerCase();
+                            if (value.startsWith('javascript:') || value.startsWith('data:') || value.startsWith('vbscript:')) {
+                                node.removeAttribute(attr.name);
+                            }
+                        }
+                    }
+                    collect(node);
+                }
+            }
         }
 
         function escapeHtml(str) {
@@ -1278,7 +1342,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         processedLines.push('<ul>');
                         inList = true;
                     }
-                    processedLines.push(`<li>${bulletContent}</li>`);
+                    processedLines.push(`<li>${escapeHtml(bulletContent)}</li>`);
                 } else {
                     if (inList && line.trim() === '') {
                         // Empty line ends the list
@@ -1424,7 +1488,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         processedLines.push('<ul>');
                         inList = true;
                     }
-                    processedLines.push(`<li>${bulletContent}</li>`);
+                    processedLines.push(`<li>${escapeXml(bulletContent)}</li>`);
                 } else {
                     if (inList && line.trim() === '') {
                         // Empty line ends the list
@@ -1574,6 +1638,23 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 .replace(/\{\.underline\}/g, '')
                 .replace(/\{\.mark\}/g, '')
                 .trim();
+        }
+
+        // Produce a filesystem-safe filename while preserving Unicode letters
+        // and digits. Falls back to ASCII-only when Unicode property classes
+        // aren't supported.
+        function makeSafeFilename(name) {
+            if (!name) return 'library';
+            const trimmed = String(name).trim().replace(/\s+/g, '_');
+            let safe;
+            try {
+                safe = trimmed.replace(/[^\p{L}\p{N}_-]/gu, '_');
+            } catch (e) {
+                safe = trimmed.replace(/[^a-zA-Z0-9_-]/g, '_');
+            }
+            // Avoid leading dots / reserved names; cap length
+            safe = safe.replace(/^\.+/, '_').slice(0, 100);
+            return safe || 'library';
         }
 
         /**
@@ -1834,7 +1915,13 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
                 
-                const answerMatch = line.match(/^Answer:\s*(.+?)(?:Explanation:\s*(.+))?$/i);
+                // Split on "Explanation:" only when it appears as a section marker
+                // (capital E, preceded by whitespace, followed by space + content).
+                // This avoids false splits when "explanation:" appears inside the answer text.
+                let answerMatch = line.match(/^Answer:\s*(.+?)\s+Explanation:\s+(.+)$/);
+                if (!answerMatch) {
+                    answerMatch = line.match(/^Answer:\s*(.+)$/i);
+                }
                 if (answerMatch && questionText && choices.length === 0) {
                     // Finalize previous pending answer if exists
                     if (pendingAnswer) {
@@ -1856,7 +1943,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
                     const answerValue = answerMatch[1].trim();
                     const inlineExplanation = answerMatch[2] ? answerMatch[2].trim() : '';
-                    const isNumerical = /^-?\d+\.?\d*$/.test(answerValue) || /^-?\d*\.?\d+$/.test(answerValue);
+                    const isNumerical = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(answerValue);
 
                     // If we have an inline explanation or accumulated explanation, finalize immediately
                     if (inlineExplanation || explanation) {
@@ -1899,9 +1986,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     // Parse letters (A, B, C, etc.) and convert to indices
                     const letterMatches = correctLetters.match(/[A-Z]/gi);
                     if (letterMatches) {
-                        correctIndices = letterMatches.map(letter => {
+                        const parsedIndices = letterMatches.map(letter => {
                             return letter.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
-                        }).filter(index => index >= 0 && index < choices.length);
+                        });
+                        const outOfRange = parsedIndices.filter(idx => idx < 0 || idx >= choices.length);
+                        if (outOfRange.length > 0) {
+                            console.warn(`Correct: letters reference indices beyond ${choices.length} choices - dropped:`, outOfRange);
+                        }
+                        correctIndices = parsedIndices.filter(index => index >= 0 && index < choices.length);
                     }
                     inChoices = false;
                     questionEnded = false; // Reset questionEnded flag after processing choices
@@ -1914,7 +2006,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     inChoices = false;
                     explanationEnded = false; // Reset flag when starting new explanation
                     questionEnded = false; // Reset questionEnded flag when starting explanation
-                    explanation = line.replace(/^explanation:\s*/i, '').replace(/^explain:\s*/i, '');
+                    // Strip any repeated "Explanation:" / "Explain:" prefixes
+                    let stripped = line;
+                    let prev;
+                    do {
+                        prev = stripped;
+                        stripped = stripped.replace(/^(explanation|explain):\s*/i, '');
+                    } while (stripped !== prev);
+                    explanation = stripped;
                     if (!explanation || explanation.toLowerCase() === 'explanation') {
                         explanation = '';
                     }
@@ -2331,6 +2430,15 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 return;
             }
 
+            // Clamp currentPreviewIndex to valid range in case problems shrank
+            if (problems.length === 0) {
+                currentPreviewIndex = 0;
+            } else if (currentPreviewIndex >= problems.length) {
+                currentPreviewIndex = problems.length - 1;
+            } else if (currentPreviewIndex < 0) {
+                currentPreviewIndex = 0;
+            }
+
             countBadge.textContent = `${problems.length} Problem${problems.length !== 1 ? 's' : ''}`;
 
             if (problems.length === 0) {
@@ -2496,7 +2604,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             if (isNaN(problemIndex) || !currentProblems[problemIndex]) return;
             if (choiceIndex !== null && isNaN(choiceIndex)) return;
 
-            const content = el.innerHTML;
+            const content = sanitizeHtml(el.innerHTML);
 
             if (field === 'question') {
                 currentProblems[problemIndex].question = content;
@@ -2507,7 +2615,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     currentProblems[problemIndex].choices[choiceIndex] = content;
                 }
             } else if (field === 'answer') {
-                currentProblems[problemIndex].answer = content;
+                // Answers should be plain text - use textContent to strip any HTML
+                currentProblems[problemIndex].answer = el.textContent;
             }
             
             // Update OLX output
@@ -2519,11 +2628,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function handleBlur(e) {
-            setTimeout(() => {
-                if (!document.querySelector('.editable:focus')) {
-                    document.getElementById('editIndicator').style.display = 'none';
+            // Defer until after the focus transfer completes, then check whether
+            // focus landed on another editable. Using relatedTarget alone misses
+            // focus moves triggered via mousedown on a non-editable.
+            requestAnimationFrame(() => {
+                const active = document.activeElement;
+                if (!active || !active.classList || !active.classList.contains('editable')) {
+                    const indicator = document.getElementById('editIndicator');
+                    if (indicator) indicator.style.display = 'none';
                 }
-            }, 100);
+            });
         }
         
         function handleKeydown(e) {
@@ -3024,42 +3138,85 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function copyOutput() {
             const output = document.getElementById('output');
             const text = output.textContent;
-            
+
             if (!text || text === 'OLX output will appear here...') {
                 showStatus('No output to copy', 'error');
                 return;
             }
-            
-            navigator.clipboard.writeText(text).then(() => {
-                showStatus('Copied to clipboard!', 'success');
-            }).catch(err => {
-                showStatus('Failed to copy', 'error');
-            });
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showStatus('Copied to clipboard!', 'success');
+                }).catch(() => {
+                    copyFallback(text);
+                });
+            } else {
+                copyFallback(text);
+            }
+        }
+
+        function copyFallback(text) {
+            // Legacy fallback for insecure contexts / older browsers
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            let ok = false;
+            try {
+                ok = document.execCommand('copy');
+            } catch (e) {
+                ok = false;
+            }
+            document.body.removeChild(ta);
+            showStatus(ok ? 'Copied to clipboard!' : 'Failed to copy - copy manually', ok ? 'success' : 'error');
         }
         
+        let downloadInProgress = false;
+
         function downloadOutput() {
+            if (downloadInProgress) return;
             const output = document.getElementById('output');
             const text = output.textContent;
-            
+
             if (!text || text === 'OLX output will appear here...') {
                 showStatus('No output to download', 'error');
                 return;
             }
-            
-            const blob = new Blob([text], { type: 'text/xml' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'problems.xml';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            showStatus('Downloaded problems.xml', 'success');
+
+            downloadInProgress = true;
+            let url;
+            try {
+                const blob = new Blob([text], { type: 'text/xml' });
+                url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'problems.xml';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                showStatus('Downloaded problems.xml', 'success');
+            } catch (err) {
+                showStatus('Error creating download: ' + err.message, 'error');
+                console.error(err);
+            } finally {
+                if (url) URL.revokeObjectURL(url);
+                setTimeout(() => { downloadInProgress = false; }, 500);
+            }
         }
         
         function generateUUID() {
+            if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+                return crypto.randomUUID().replace(/-/g, '');
+            }
+            if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+                const bytes = new Uint8Array(16);
+                crypto.getRandomValues(bytes);
+                return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+            }
+            // Last-resort fallback (dev only) - Math.random is not crypto safe
             return 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'.replace(/x/g, function() {
                 return Math.floor(Math.random() * 16).toString(16);
             });
@@ -3136,12 +3293,17 @@ Explanation: Sales by category represents distinct groups."></textarea>
             return parts.join('\n');
         }
         
+        let libraryDownloadInProgress = false;
+
         async function downloadLibrary() {
+            if (libraryDownloadInProgress) return;
             if (currentProblems.length === 0) {
                 showStatus('No problems to export. Convert problems first.', 'error');
                 return;
             }
-            
+
+            libraryDownloadInProgress = true;
+            let url;
             try {
                 const input = document.getElementById('input').value;
                 const result = parseProblems(input);
@@ -3162,7 +3324,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 libraryXML += `</library>`;
                 
                 const zip = new JSZip();
-                const safeLibraryId = result.libraryId.replace(/[^a-zA-Z0-9_-]/g, '_');
+                const safeLibraryId = makeSafeFilename(result.libraryId);
                 const library = zip.folder(safeLibraryId);
                 const problemFolder = library.folder('problem');
                 const policiesFolder = library.folder('policies');
@@ -3180,19 +3342,21 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     compressionOptions: { level: 9 }
                 });
                 
-                const url = URL.createObjectURL(content);
+                url = URL.createObjectURL(content);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `${safeLibraryId}.zip`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
+
                 showStatus(`Downloaded ${safeLibraryId}.zip with ${currentProblems.length} problems (with edits)`, 'success');
             } catch (error) {
                 showStatus(`Error creating library: ${error.message}`, 'error');
                 console.error(error);
+            } finally {
+                if (url) URL.revokeObjectURL(url);
+                setTimeout(() => { libraryDownloadInProgress = false; }, 500);
             }
         }
         
@@ -3202,10 +3366,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
             document.getElementById('status').style.display = 'none';
             currentProblems = [];
             currentPreviewIndex = 0;
-            
+            showAllMode = true;
+
             document.querySelectorAll('.stat-value').forEach(el => el.textContent = '0');
             document.getElementById('stat-warnings').classList.remove('warning', 'error');
-            
+
             renderPreview([]);
         }
         
@@ -3269,8 +3434,11 @@ Explanation: Basic arithmetic shows that two plus two equals four.`;
                     })
                         .then(function(result) {
                             const html = result.value;
-                            const tempDiv = document.createElement('div');
-                            tempDiv.innerHTML = html;
+                            // Parse via DOMParser so images/scripts aren't fetched/executed
+                            const parsedDoc = new DOMParser().parseFromString(
+                                `<!doctype html><body>${html}</body>`, 'text/html');
+                            const tempDiv = parsedDoc.body;
+                            sanitizeNode(tempDiv);
                             
                             let text = '';
                             const processNode = (node) => {
@@ -3465,6 +3633,24 @@ Explanation: Basic arithmetic shows that two plus two equals four.`;
                 }
             });
         }
+
+        // Global Escape handler closes whichever dialog is open so the
+        // behavior is consistent regardless of what has focus.
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Escape') return;
+            const dialogs = [
+                { el: document.getElementById('linkDialog'), close: closeLinkDialog },
+                { el: document.getElementById('codeDialog'), close: closeCodeDialog },
+                { el: document.getElementById('latexDialog'), close: closeLatexDialog }
+            ];
+            for (const d of dialogs) {
+                if (d.el && d.el.classList.contains('visible')) {
+                    d.close();
+                    e.preventDefault();
+                    return;
+                }
+            }
+        });
     </script>
 </body>
 </html>
