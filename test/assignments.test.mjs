@@ -22,17 +22,20 @@ if (!existsSync(ASSIGNMENTS_DIR)) {
             const full = join(dir, entry.name);
             if (entry.isDirectory()) walk(full);
             else if (entry.name.endsWith('.docx') && !entry.name.startsWith('~')) {
-                // One outlier file is author-format-specific; skip per prior call
-                if (entry.name === 'Module 8 Assignment 1.docx' && !full.includes('NEW')) continue;
+                // Module 8 assignments use an author-specific format with
+                // multi-choice blocks packed into a single LaTeX align* env
+                // that the parser doesn't unpack the way those authors
+                // intend; excluded per user request.
+                if (/module\s*8\s*assignment/i.test(entry.name)) continue;
                 files.push(full);
             }
         }
     })(ASSIGNMENTS_DIR);
 
-    // Budget based on the v4.3 stable baseline (182 "soft" issues across 39
-    // assignments). Treat a sharp regression as a test failure; small drift
+    // Budget based on the 37-file baseline (Module 8 files excluded): 127
+    // soft issues. Treat a sharp regression as a test failure; small drift
     // is expected as parsing improves.
-    const ISSUE_BUDGET = 200;
+    const ISSUE_BUDGET = 150;
 
     await t.caseAsync(`${files.length} assignments parse without throwing`, async () => {
         for (const f of files) {
