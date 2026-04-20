@@ -596,639 +596,423 @@ function normalizeLatexChoices(text) {
     return text;
 }
 
-function parseProblems(text) {
-    const problems = [];
+// ---------------------------------------------------------------------------
+// parseProblems (v5): rewritten around an explicit state object and a single
+// finalizeProblem() helper. Same public signature and same behavior as the
+// v4 implementation - regression covered by test/parser.test.mjs and
+// test/assignments.test.mjs.
+//
+// State lives entirely inside a `ctx` object so every line handler operates
+// on the same piece of memory. The main loop dispatches line-by-line through
+// an ordered list of handlers; the first handler that claims a line wins.
+// ---------------------------------------------------------------------------
 
-    // Split "1. What ... 2. What ..." runs into separate lines, but do NOT
-    // split inside expressions like "x=0. Which" where the number is
-    // attached to a previous token (avoid false positives on math).
-    let normalizedText = normalizeLatexChoices(preNormalizeEmphasis(text))
+function parseProblems(text) {
+    const normalizedText = normalizeLatexChoices(preNormalizeEmphasis(text))
         .replace(/(^|\s)(\d+\.\s+[A-Z])/g, '$1\n$2')
         .replace(/(Part\s+\d+\s+Question\s+\d+)/gi, '\n\n$1\n')
         .replace(/(\*\*Original:)/gi, '\n\n$1');
-    
+
     const lines = normalizedText.split('\n');
-    
-    let libraryOrg = 'MITxT';
-    let libraryName = 'Problem Library';
-    let libraryId = 'CustomLibrary';
-    let displayNameLabel = '';
-    let startIndex = 0;
-    
+    const header = parseHeaderMetadata(lines);
+
+    const ctx = {
+        out: {
+            problems: [],
+            displayNameLabel: header.displayNameLabel || 'Problem',
+            libraryOrg: header.libraryOrg,
+            libraryName: header.libraryName,
+            libraryId: header.libraryId,
+        },
+        questionText: '',
+        choices: [],
+        correctIndices: [],
+        explanation: '',
+        currentLabel: '',
+        pendingAnswer: null,
+        problemCount: 0,
+        // Transient flags (set by handlers, read by handlers):
+        inChoices: false,
+        explanationEnded: false,
+        questionEnded: false,
+        awaitingQuestionBody: false,
+    };
+
+    for (let i = header.startIndex; i < lines.length; i++) {
+        processLine(ctx, lines[i].trim());
+    }
+    finalizeProblem(ctx);
+
+    return ctx.out;
+}
+
+// --- header pre-scan: org / library id / initial label ---------------------
+
+function parseHeaderMetadata(lines) {
+    const header = {
+        libraryOrg: 'MITxT',
+        libraryName: 'Problem Library',
+        libraryId: 'CustomLibrary',
+        displayNameLabel: '',
+        startIndex: 0,
+    };
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
-        if (line) {
-            const nameIdMatch = line.match(/^(.+?):\s*([A-Z0-9_]+)$/);
-            if (nameIdMatch && nameIdMatch[2].match(/^[A-Z0-9_]+$/)) {
-                libraryName = nameIdMatch[1].trim();
-                libraryId = nameIdMatch[2].trim();
-                continue;
-            }
-            
-            const orgMatch = line.match(/^Organization:\s*(.+?)(?:,|$)/i);
-            if (orgMatch) {
-                libraryOrg = orgMatch[1].trim();
-                continue;
-            }
-            
-            const nameMatch = line.match(/Legacy Library Name:\s*(.+?)(?:,|$)/i);
-            if (nameMatch) {
-                libraryName = nameMatch[1].trim();
-                continue;
-            }
-            
-            const idMatch = line.match(/Library ID:\s*(.+?)(?:,|$)/i);
-            if (idMatch) {
-                libraryId = idMatch[1].trim();
-                continue;
-            }
-            
-            const labelMatch = line.match(/^Label:\s*(.+)/i);
-            if (labelMatch) {
-                displayNameLabel = labelMatch[1].trim();
-                startIndex = i + 1;
-                break;
-            }
-            
-            const partQuestionMatch = line.match(/^Part\s+\d+\s+Question\s+\d+/i);
-            if (partQuestionMatch) {
-                displayNameLabel = line.trim();
-                startIndex = i + 1;
-                break;
-            }
+        if (!line) continue;
 
-            if (line.match(/^Part\s+\d+$/i)) {
-                continue;
-            }
-
-            // Detect "Q-style" labels like "Q1-A", "Q2-B (Existing)" -
-            // break so the main loop can treat them as question labels.
-            if (line.match(/^Q\d+-[A-Za-z0-9]+(\s*\(.*\))?$/)) {
-                startIndex = i;
-                break;
-            }
-
-            if (line.endsWith('?') || line.match(/^\d+\.\s+/) || line.match(/^Original:/i)) {
-                startIndex = i;
-                break;
-            }
+        let m;
+        if ((m = line.match(/^(.+?):\s*([A-Z0-9_]+)$/)) && m[2].match(/^[A-Z0-9_]+$/)) {
+            header.libraryName = m[1].trim();
+            header.libraryId = m[2].trim();
+            continue;
+        }
+        if ((m = line.match(/^Organization:\s*(.+?)(?:,|$)/i)))     { header.libraryOrg = m[1].trim(); continue; }
+        if ((m = line.match(/Legacy Library Name:\s*(.+?)(?:,|$)/i))) { header.libraryName = m[1].trim(); continue; }
+        if ((m = line.match(/Library ID:\s*(.+?)(?:,|$)/i)))         { header.libraryId = m[1].trim(); continue; }
+        if ((m = line.match(/^Label:\s*(.+)/i))) {
+            header.displayNameLabel = m[1].trim();
+            header.startIndex = i + 1;
+            return header;
+        }
+        if ((m = line.match(/^Part\s+\d+\s+Question\s+\d+/i))) {
+            header.displayNameLabel = line.trim();
+            header.startIndex = i + 1;
+            return header;
+        }
+        if (line.match(/^Part\s+\d+$/i)) continue;
+        if (line.match(/^Q\d+-[A-Za-z0-9]+(\s*\(.*\))?$/)) { header.startIndex = i; return header; }
+        if (line.endsWith('?') || line.match(/^\d+\.\s+/) || line.match(/^Original:/i)) {
+            header.startIndex = i;
+            return header;
         }
     }
-    
-    let questionText = '';
-    let choices = [];
-    let correctIndices = [];
-    let explanation = '';
-    let problemCount = 0;
-    let inChoices = false;
-    let currentLabel = '';
-    let explanationEnded = false;
-    let questionEnded = false;
-    let pendingAnswer = null; // Store answer info when waiting for explanation
-    let awaitingQuestionBody = false; // True after a label finalizes a problem, until question body starts
-    
-    for (let i = startIndex; i < lines.length; i++) {
-        const line = lines[i].trim();
-        
-        const labelMatch = line.match(/^Label:\s*(.+)/i);
-        if (labelMatch) {
-            if (questionText && choices.length > 0) {
-                problemCount++;
-                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                problems.push({
-                    title: displayName,
-                    question: cleanText(questionText),
-                    choices: choices.map(c => cleanText(c.text)),
-                    correctIndices: correctIndices,
-                    isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
-                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                });
-                questionText = '';
-                choices = [];
-                correctIndices = [];
-                explanation = '';
-                explanationEnded = false;
-                questionEnded = false;
-                inChoices = false;
-            }
-            currentLabel = labelMatch[1].trim();
-            continue;
-        }
-        
-        const partQuestionMatch = line.match(/^Part\s+\d+\s+Question\s+\d+/i);
-        if (partQuestionMatch) {
-            if (questionText && choices.length > 0) {
-                problemCount++;
-                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                problems.push({
-                    title: displayName,
-                    question: cleanText(questionText),
-                    choices: choices.map(c => cleanText(c.text)),
-                    correctIndices: correctIndices,
-                    isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
-                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                });
-                questionText = '';
-                choices = [];
-                correctIndices = [];
-                explanation = '';
-                explanationEnded = false;
-                questionEnded = false;
-                inChoices = false;
-            }
-            currentLabel = line.trim();
-            continue;
-        }
+    return header;
+}
 
-        // Section headers like "Q1 – Material availability constraints"
-        // (note: space-dash-space, en-dash or hyphen) are noise between
-        // problems and must not be absorbed into the previous explanation.
-        if (/^Q\d+\s+[-–—]\s+/.test(line)) {
-            continue;
-        }
+// --- single place to push a completed problem and reset field state --------
 
-        // Q-style label on its own line (e.g. "Q1-A", "Q2-B (Existing)").
-        // Finalize any in-progress problem and use the label as the next
-        // problem's title. Hyphen or en-dash/em-dash accepted between the
-        // number and the letter, as long as there are no surrounding spaces.
-        const qLabelMatch = line.match(/^(Q\d+[-–—][A-Za-z0-9]+)\s*(\(.*\))?$/);
-        if (qLabelMatch) {
-            if (pendingAnswer) {
-                problemCount++;
-                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                problems.push({
-                    title: displayName,
-                    question: cleanText(pendingAnswer.questionText),
-                    answer: pendingAnswer.answerValue,
-                    answerType: pendingAnswer.answerType,
-                    choices: [],
-                    correctIndices: [],
-                    isMultipleChoice: false,
-                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                });
-                pendingAnswer = null;
-                explanation = '';
-            } else if (questionText && choices.length > 0) {
-                problemCount++;
-                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                problems.push({
-                    title: displayName,
-                    question: cleanText(questionText),
-                    choices: choices.map(c => cleanText(c.text)),
-                    correctIndices: correctIndices,
-                    isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
-                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                });
-            }
-            questionText = '';
-            choices = [];
-            correctIndices = [];
-            explanation = '';
-            explanationEnded = false;
-            questionEnded = false;
-            inChoices = false;
-            awaitingQuestionBody = true;
-            currentLabel = qLabelMatch[1].trim();
-            continue;
-        }
-
-        // Skip blank lines - don't finalize on them to allow blank lines between choices
-        if (!line) {
-            continue;
-        }
-
-        const originalMatch = line.match(/^Original:\s*(.+)/i) || line.match(/^\*\*Original:\s*(.+)/i);
-        if (originalMatch) {
-            if (questionText && choices.length > 0) {
-                problemCount++;
-                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                problems.push({
-                    title: displayName,
-                    question: cleanText(questionText),
-                    choices: choices.map(c => cleanText(c.text)),
-                    correctIndices: correctIndices,
-                    isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
-                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                });
-                choices = [];
-                correctIndices = [];
-                explanation = '';
-            }
-
-            // Reset flags when starting new question
-            questionText = originalMatch[1];
-            inChoices = true;
-            explanationEnded = false;
-            questionEnded = false;
-            continue;
-        }
-        
-        const numberedQuestionMatch = line.match(/^\d+\.\s+(.+)/);
-        if (numberedQuestionMatch) {
-            if (questionText && choices.length > 0) {
-                problemCount++;
-                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                problems.push({
-                    title: displayName,
-                    question: cleanText(questionText),
-                    choices: choices.map(c => cleanText(c.text)),
-                    correctIndices: correctIndices,
-                    isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
-                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                });
-                choices = [];
-                correctIndices = [];
-                explanation = '';
-            }
-
-            // Reset flags when starting new question
-            questionText = numberedQuestionMatch[1];
-            inChoices = true;
-            explanationEnded = false;
-            questionEnded = false;
-            continue;
-        }
-        
-        const selectAllPattern = /\(select all that apply\.?\)$/i;
-        const isQuestion = (line.endsWith('?') || line.includes('?') || selectAllPattern.test(line)) && !line.toLowerCase().startsWith('explanation');
-
-        if (isQuestion) {
-            // Finalize previous pending answer if exists
-            if (pendingAnswer) {
-                problemCount++;
-                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                problems.push({
-                    title: displayName,
-                    question: cleanText(pendingAnswer.questionText),
-                    answer: pendingAnswer.answerValue,
-                    answerType: pendingAnswer.answerType,
-                    choices: [],
-                    correctIndices: [],
-                    isMultipleChoice: false,
-                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                });
-                explanation = '';
-                pendingAnswer = null;
-            }
-
-            if (questionText && choices.length > 0) {
-                problemCount++;
-                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                problems.push({
-                    title: displayName,
-                    question: cleanText(questionText),
-                    choices: choices.map(c => cleanText(c.text)),
-                    correctIndices: correctIndices,
-                    isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
-                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                });
-                choices = [];
-                correctIndices = [];
-                explanation = '';
-                explanationEnded = false;
-                questionEnded = false;
-            }
-
-            // Append to existing questionText if we've been accumulating setup text.
-            // This covers both post-"End Explanation" accumulation and ordinary
-            // multi-line question bodies where only the final line ends with "?".
-            const stillAccumulating = questionText && choices.length === 0 && !pendingAnswer;
-            if ((explanationEnded || stillAccumulating) && questionText) {
-                questionText = questionText + ' ' + line;
-                explanationEnded = false;
-                questionEnded = false;
-            } else {
-                questionText = line;
-            }
-            awaitingQuestionBody = false;
-            inChoices = true;
-            continue;
-        }
-        
-        // Match "Answer:" (any case) and optionally split off a
-        // trailing "Explanation: ..." section. The prefix is
-        // case-insensitive, but only a capital-E "Explanation:"
-        // triggers the split so answer text containing lowercase
-        // "explanation:" is preserved intact.
-        const answerPrefix = line.match(/^Answer:\s*(.+)$/i);
-        let answerMatch = null;
-        if (answerPrefix) {
-            const rest = answerPrefix[1];
-            const splitMatch = rest.match(/^(.+?)\s+Explanation:\s+(.+)$/);
-            answerMatch = splitMatch
-                ? [line, splitMatch[1], splitMatch[2]]
-                : [line, rest];
-        }
-        if (answerMatch && questionText && choices.length === 0) {
-            // Finalize previous pending answer if exists
-            if (pendingAnswer) {
-                problemCount++;
-                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                problems.push({
-                    title: displayName,
-                    question: cleanText(pendingAnswer.questionText),
-                    answer: pendingAnswer.answerValue,
-                    answerType: pendingAnswer.answerType,
-                    choices: [],
-                    correctIndices: [],
-                    isMultipleChoice: false,
-                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                });
-                explanation = '';
-                pendingAnswer = null;
-            }
-
-            const answerValue = answerMatch[1].trim();
-            const inlineExplanation = answerMatch[2] ? answerMatch[2].trim() : '';
-            const isNumerical = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(answerValue);
-
-            // If we have an inline explanation or accumulated explanation, finalize immediately
-            if (inlineExplanation || explanation) {
-                problemCount++;
-                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                problems.push({
-                    title: displayName,
-                    question: cleanText(questionText),
-                    answer: answerValue,
-                    answerType: isNumerical ? 'numerical' : 'text',
-                    choices: [],
-                    correctIndices: [],
-                    isMultipleChoice: false,
-                    explanation: inlineExplanation || explanation || 'Add your explanation here'
-                });
-                questionText = '';
-                explanation = '';
-            } else {
-                // No explanation yet - store answer info and wait for "Explanation:" line
-                pendingAnswer = {
-                    questionText: questionText,
-                    answerValue: answerValue,
-                    answerType: isNumerical ? 'numerical' : 'text'
-                };
-                questionText = '';
-            }
-
-            choices = [];
-            correctIndices = [];
-            explanationEnded = false;
-            questionEnded = false;
-            inChoices = false;
-            continue;
-        }
-
-        // Handle "Correct: A, C" format. Also accept "Answer: A" used
-        // the same way after a multiple-choice block (some authors
-        // write "Answer: B" instead of "Correct: B").
-        const correctMatch = line.match(/^(Correct|Answer):\s*(.+)/i);
-        if (correctMatch && questionText && choices.length > 0) {
-            const rawLetters = correctMatch[2].trim();
-            // Normalize lookalike characters (Greek Α, full-width Ａ, etc.)
-            // before extracting letters.
-            const normalized = normalizeCorrectLetters(rawLetters);
-            const letterMatches = normalized.match(/[A-Z]/g);
-            if (letterMatches && letterMatches.length > 0) {
-                const parsedIndices = letterMatches.map(letter => {
-                    return letter.charCodeAt(0) - 'A'.charCodeAt(0);
-                });
-                const outOfRange = parsedIndices.filter(idx => idx < 0 || idx >= choices.length);
-                if (outOfRange.length > 0) {
-                    console.warn(`Correct: letters reference indices beyond ${choices.length} choices - dropped:`, outOfRange);
-                }
-                correctIndices = parsedIndices.filter(index => index >= 0 && index < choices.length);
-            } else if (rawLetters) {
-                console.warn(`Correct: line contains no recognizable A-Z letters - ignored:`, JSON.stringify(rawLetters));
-            }
-            inChoices = false;
-            questionEnded = false; // Reset questionEnded flag after processing choices
-            continue;
-        }
-
-        if (line.toLowerCase().startsWith('explanation:') ||
-            line.toLowerCase().startsWith('explain:') ||
-            line.toLowerCase() === 'explanation') {
-            inChoices = false;
-            explanationEnded = false; // Reset flag when starting new explanation
-            questionEnded = false; // Reset questionEnded flag when starting explanation
-            // Strip any repeated "Explanation:" / "Explain:" prefixes
-            let stripped = line;
-            let prev;
-            do {
-                prev = stripped;
-                stripped = stripped.replace(/^(explanation|explain):\s*/i, '');
-            } while (stripped !== prev);
-            explanation = stripped;
-            if (!explanation || explanation.toLowerCase() === 'explanation') {
-                explanation = '';
-            }
-            continue;
-        }
-
-        // Check for explicit "End Explanation" marker
-        if (line.toLowerCase() === 'end explanation' ||
-            line.toLowerCase().startsWith('end explanation')) {
-            // If we have a complete problem (question + choices), finalize it now
-            if (questionText && choices.length > 0) {
-                problemCount++;
-                const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                problems.push({
-                    title: displayName,
-                    question: cleanText(questionText),
-                    choices: choices.map(c => cleanText(c.text)),
-                    correctIndices: correctIndices,
-                    isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
-                    explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                });
-                // Reset for next problem
-                questionText = '';
-                choices = [];
-                correctIndices = [];
-                explanation = '';
-                inChoices = false;
-            }
-            // Set flag so next lines start a new question
-            explanationEnded = true;
-            questionEnded = false;
-            continue;
-        }
-
-        // Check for explicit "endquestion" marker to mark end of question label
-        if (line.toLowerCase() === 'endquestion' ||
-            line.toLowerCase().startsWith('endquestion')) {
-            // Stop accumulating into questionText - the question label is complete
-            // Mark that we're ready for choices to start
-            questionEnded = true;
-            inChoices = true;
-            continue;
-        }
-
-        // Check if this line looks like the start of a new question's setup
-        // These patterns indicate we should NOT add this to the current explanation
-        const isQuestionSetup = /^(suppose|consider|given|let|assume|if|imagine)\s+/i.test(line);
-        const looksLikeNewQuestion = /^(what|which|why|how|when|where|who|does|is|are|can|should|would|will)\s+/i.test(line);
-
-        // Handle explanation accumulation for both choice-based and answer-based questions
-        const isAccumulatingExplanation = (!inChoices && !explanationEnded) &&
-                                         ((questionText && choices.length > 0) || pendingAnswer);
-
-        if (isAccumulatingExplanation) {
-            // Stop accumulating explanation if we see a new question setup or question
-            if (isQuestionSetup || looksLikeNewQuestion) {
-                // This line belongs to the next question, not this explanation
-                // Finalize the current problem first
-                if (pendingAnswer) {
-                    // Finalize pending answer question
-                    problemCount++;
-                    const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                    problems.push({
-                        title: displayName,
-                        question: cleanText(pendingAnswer.questionText),
-                        answer: pendingAnswer.answerValue,
-                        answerType: pendingAnswer.answerType,
-                        choices: [],
-                        correctIndices: [],
-                        isMultipleChoice: false,
-                        explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                    });
-                    pendingAnswer = null;
-                } else if (questionText && choices.length > 0) {
-                    // Finalize choice-based question
-                    problemCount++;
-                    const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-                    problems.push({
-                        title: displayName,
-                        question: cleanText(questionText),
-                        choices: choices.map(c => cleanText(c.text)),
-                        correctIndices: correctIndices,
-                        isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
-                        explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
-                    });
-                }
-                // Reset for next problem and start accumulating this line as new question
-                questionText = line;
-                choices = [];
-                correctIndices = [];
-                explanation = '';
-                inChoices = false;
-                explanationEnded = false;
-                questionEnded = false;
-                continue;
-            } else {
-                explanation += (explanation ? ' ' : '') + line;
-                continue;
-            }
-        }
-        
-        if (questionText && inChoices) {
-            awaitingQuestionBody = false;
-            // Process lines that look like choices. Accept Latin A-Z,
-            // Greek Α-Ω and Cyrillic А-Я as prefix letters because
-            // Word/PDF paste often substitutes lookalikes.
-            const choicePattern = /^[A-ZΑ-ΩА-Я]\.\s*/iu;
-            const isPrefixedChoice = choicePattern.test(line);
-
-            // Stop treating lines as choices if we hit these markers
-            const isStopMarker = line.match(/^Correct:\s*/i) ||
-                                line.toLowerCase().startsWith('explanation:') ||
-                                line.toLowerCase().startsWith('explain:') ||
-                                line.toLowerCase() === 'explanation';
-
-            if (isStopMarker) {
-                // Don't process as choice, let it be handled by other logic
-                // Fall through to marker detection below
-            } else if (isPrefixedChoice) {
-                // Handle prefixed choices (A., B., C., etc.)
-                const isCorrect = line.toLowerCase().includes('(correct)') ||
-                                  line.toLowerCase().includes('(correct answer)') ||
-                                  line.includes('**(correct');
-                const choiceText = line
-                    .replace(/^[A-ZΑ-ΩА-Я]\.\s*/iu, '')  // Strip "A.", "Α.", "С." etc.
-                    .replace(/\*\*\(correct.*?\)\*\*/i, '')
-                    .replace(/\(correct\s*answer\)/i, '')
-                    .replace(/\(correct\)/i, '')
-                    .replace(/\\$/, '')
-                    .trim();
-
-                if (choiceText) {
-                    if (isCorrect) {
-                        correctIndices.push(choices.length);
-                    }
-                    choices.push({ text: choiceText, correct: isCorrect });
-                }
-                continue; // Processed this line as a choice, move to next line
-            } else if (line && line.length > 0) {
-                // Handle unprefixed choices (plain text lines)
-                const isCorrect = line.toLowerCase().includes('(correct)') ||
-                                  line.toLowerCase().includes('(correct answer)') ||
-                                  line.includes('**(correct');
-                const choiceText = line
-                    .replace(/\*\*\(correct.*?\)\*\*/i, '')
-                    .replace(/\(correct\s*answer\)/i, '')
-                    .replace(/\(correct\)/i, '')
-                    .replace(/\\$/, '')
-                    .trim();
-
-                if (choiceText) {
-                    if (isCorrect) {
-                        correctIndices.push(choices.length);
-                    }
-                    choices.push({ text: choiceText, correct: isCorrect });
-                }
-                continue; // Processed this line as a choice, move to next line
-            }
-        }
-
-        // After "End Explanation" or after detecting question setup, accumulate setup text for the next question.
-        // This catches lines that fall through all other patterns.
-        // Also accumulate when awaitingQuestionBody is true (set right after a
-        // Q-label or part-question label) so that multi-line setup before the "?"
-        // line is preserved.
-        const canAccumulateSetup = (explanationEnded ||
-                                    awaitingQuestionBody ||
-                                    (questionText && !inChoices && choices.length === 0)) &&
-                                   !questionEnded && line;
-        if (canAccumulateSetup) {
-            // Skip LaTeX section markers and other metadata
-            if (!line.startsWith('\\section') && !line.startsWith('\\subsection')) {
-                // Build up the next question text from all lines until choices start or "endquestion" is seen
-                questionText = questionText ? questionText + ' ' + line : line;
-            }
-        }
-    }
-    
-    // Finalize any remaining problem
-    if (pendingAnswer) {
-        problemCount++;
-        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-        problems.push({
-            title: displayName,
-            question: cleanText(pendingAnswer.questionText),
-            answer: pendingAnswer.answerValue,
-            answerType: pendingAnswer.answerType,
+function finalizeProblem(ctx) {
+    const title = ctx.currentLabel || ctx.out.displayNameLabel || `Problem ${ctx.problemCount + 1}`;
+    if (ctx.pendingAnswer) {
+        ctx.problemCount++;
+        ctx.out.problems.push({
+            title,
+            question: cleanText(ctx.pendingAnswer.questionText),
+            answer: ctx.pendingAnswer.answerValue,
+            answerType: ctx.pendingAnswer.answerType,
             choices: [],
             correctIndices: [],
             isMultipleChoice: false,
-            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+            explanation: ctx.explanation ? cleanText(ctx.explanation) : 'Add your explanation here',
         });
-    } else if (questionText && choices.length > 0) {
-        problemCount++;
-        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
-        problems.push({
-            title: displayName,
-            question: cleanText(questionText),
-            choices: choices.map(c => cleanText(c.text)),
-            correctIndices: correctIndices,
-            isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
-            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+        ctx.pendingAnswer = null;
+    } else if (ctx.questionText && ctx.choices.length > 0) {
+        ctx.problemCount++;
+        ctx.out.problems.push({
+            title,
+            question: cleanText(ctx.questionText),
+            choices: ctx.choices.map(c => cleanText(c.text)),
+            correctIndices: ctx.correctIndices,
+            isMultipleChoice: isProblemMultipleChoice(ctx.questionText, ctx.correctIndices.length),
+            explanation: ctx.explanation ? cleanText(ctx.explanation) : 'Add your explanation here',
         });
     }
+    // Reset per-problem state. currentLabel is preserved so that a stray label
+    // emitted between problems doesn't get overwritten - callers that see a
+    // new label set it explicitly.
+    ctx.questionText = '';
+    ctx.choices = [];
+    ctx.correctIndices = [];
+    ctx.explanation = '';
+    ctx.inChoices = false;
+    ctx.explanationEnded = false;
+    ctx.questionEnded = false;
+    ctx.awaitingQuestionBody = false;
+}
 
-    return {
-        problems: problems,
-        displayNameLabel: displayNameLabel || 'Problem',
-        libraryOrg: libraryOrg,
-        libraryName: libraryName,
-        libraryId: libraryId
-    };
+// --- ordered line handlers. First one to return true claims the line ------
+
+function processLine(ctx, line) {
+    const handlers = [
+        handleLabelLine,
+        handlePartQuestionLine,
+        handleSectionHeaderLine,
+        handleQLabelLine,
+        handleBlankLine,
+        handleOriginalLine,
+        handleNumberedQuestionLine,
+        handleQuestionLine,
+        handleAnswerLine,
+        handleCorrectLine,
+        handleExplanationStartLine,
+        handleEndExplanationLine,
+        handleEndQuestionLine,
+        handleExplanationContinuation,
+        handleChoiceLine,
+        handleSetupFallthrough,
+    ];
+    for (const h of handlers) if (h(ctx, line)) return;
+}
+
+function handleLabelLine(ctx, line) {
+    const m = line.match(/^Label:\s*(.+)/i);
+    if (!m) return false;
+    // Label applies to the NEXT problem. Finalize in-progress choice-based
+    // problem (text/numerical problems with pendingAnswer are NOT finalized
+    // here - preserves original v4 behavior).
+    if (ctx.questionText && ctx.choices.length > 0) finalizeProblem(ctx);
+    ctx.currentLabel = m[1].trim();
+    return true;
+}
+
+function handlePartQuestionLine(ctx, line) {
+    if (!line.match(/^Part\s+\d+\s+Question\s+\d+/i)) return false;
+    if (ctx.questionText && ctx.choices.length > 0) finalizeProblem(ctx);
+    ctx.currentLabel = line;
+    return true;
+}
+
+function handleSectionHeaderLine(ctx, line) {
+    // "Q1 – Topic" with spaces around the dash is just a section heading.
+    return /^Q\d+\s+[-–—]\s+/.test(line);
+}
+
+function handleQLabelLine(ctx, line) {
+    const m = line.match(/^(Q\d+[-–—][A-Za-z0-9]+)\s*(\(.*\))?$/);
+    if (!m) return false;
+    finalizeProblem(ctx);
+    ctx.currentLabel = m[1].trim();
+    ctx.awaitingQuestionBody = true;
+    return true;
+}
+
+function handleBlankLine(ctx, line) {
+    // Blank lines do not trigger finalization (choices may have blanks
+    // between them in some author styles).
+    return line === '';
+}
+
+function handleOriginalLine(ctx, line) {
+    const m = line.match(/^Original:\s*(.+)/i) || line.match(/^\*\*Original:\s*(.+)/i);
+    if (!m) return false;
+    if (ctx.questionText && ctx.choices.length > 0) finalizeProblem(ctx);
+    ctx.questionText = m[1];
+    ctx.inChoices = true;
+    ctx.explanationEnded = false;
+    ctx.questionEnded = false;
+    return true;
+}
+
+function handleNumberedQuestionLine(ctx, line) {
+    const m = line.match(/^\d+\.\s+(.+)/);
+    if (!m) return false;
+    if (ctx.questionText && ctx.choices.length > 0) finalizeProblem(ctx);
+    ctx.questionText = m[1];
+    ctx.inChoices = true;
+    ctx.explanationEnded = false;
+    ctx.questionEnded = false;
+    return true;
+}
+
+function handleQuestionLine(ctx, line) {
+    const selectAllPattern = /\(select all that apply\.?\)$/i;
+    const looksQuestion = (line.endsWith('?') || line.includes('?') || selectAllPattern.test(line)) &&
+                          !line.toLowerCase().startsWith('explanation');
+    if (!looksQuestion) return false;
+
+    // If a pending answer was waiting for an explanation, finalize it first.
+    if (ctx.pendingAnswer) finalizeProblem(ctx);
+    if (ctx.questionText && ctx.choices.length > 0) finalizeProblem(ctx);
+
+    // When we've been accumulating multi-line setup text before the "?" line,
+    // concatenate instead of replacing so the whole question body survives.
+    const stillAccumulating = ctx.questionText && ctx.choices.length === 0 && !ctx.pendingAnswer;
+    if ((ctx.explanationEnded || stillAccumulating) && ctx.questionText) {
+        ctx.questionText = ctx.questionText + ' ' + line;
+        ctx.explanationEnded = false;
+        ctx.questionEnded = false;
+    } else {
+        ctx.questionText = line;
+    }
+    ctx.awaitingQuestionBody = false;
+    ctx.inChoices = true;
+    return true;
+}
+
+function handleAnswerLine(ctx, line) {
+    // "Answer:" line accepted case-insensitively, but an inline "Explanation:"
+    // split only triggers on the canonical capital-E form - preserves answer
+    // text that contains the word "explanation:" in lowercase.
+    const prefix = line.match(/^Answer:\s*(.+)$/i);
+    if (!prefix) return false;
+    if (!ctx.questionText || ctx.choices.length !== 0) return false; // not an answer-line context
+
+    if (ctx.pendingAnswer) finalizeProblem(ctx);
+
+    const rest = prefix[1];
+    const splitMatch = rest.match(/^(.+?)\s+Explanation:\s+(.+)$/);
+    const answerValue = (splitMatch ? splitMatch[1] : rest).trim();
+    const inlineExplanation = splitMatch ? splitMatch[2].trim() : '';
+    const isNumerical = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(answerValue);
+
+    if (inlineExplanation || ctx.explanation) {
+        ctx.problemCount++;
+        ctx.out.problems.push({
+            title: ctx.currentLabel || ctx.out.displayNameLabel || `Problem ${ctx.problemCount}`,
+            question: cleanText(ctx.questionText),
+            answer: answerValue,
+            answerType: isNumerical ? 'numerical' : 'text',
+            choices: [],
+            correctIndices: [],
+            isMultipleChoice: false,
+            explanation: inlineExplanation || ctx.explanation || 'Add your explanation here',
+        });
+        ctx.questionText = '';
+        ctx.explanation = '';
+    } else {
+        ctx.pendingAnswer = {
+            questionText: ctx.questionText,
+            answerValue,
+            answerType: isNumerical ? 'numerical' : 'text',
+        };
+        ctx.questionText = '';
+    }
+    ctx.choices = [];
+    ctx.correctIndices = [];
+    ctx.explanationEnded = false;
+    ctx.questionEnded = false;
+    ctx.inChoices = false;
+    return true;
+}
+
+function handleCorrectLine(ctx, line) {
+    // "Correct: A, C" or "Answer: B" used as a correct-answer marker after
+    // a choice block.
+    const m = line.match(/^(Correct|Answer):\s*(.+)/i);
+    if (!m) return false;
+    if (!ctx.questionText || ctx.choices.length === 0) return false;
+
+    const rawLetters = m[2].trim();
+    const normalized = normalizeCorrectLetters(rawLetters);
+    const letterMatches = normalized.match(/[A-Z]/g);
+    if (letterMatches && letterMatches.length > 0) {
+        const parsed = letterMatches.map(letter => letter.charCodeAt(0) - 'A'.charCodeAt(0));
+        const outOfRange = parsed.filter(idx => idx < 0 || idx >= ctx.choices.length);
+        if (outOfRange.length > 0) {
+            console.warn(`Correct: letters reference indices beyond ${ctx.choices.length} choices - dropped:`, outOfRange);
+        }
+        ctx.correctIndices = parsed.filter(idx => idx >= 0 && idx < ctx.choices.length);
+    } else if (rawLetters) {
+        console.warn(`Correct: line contains no recognizable A-Z letters - ignored:`, JSON.stringify(rawLetters));
+    }
+    ctx.inChoices = false;
+    ctx.questionEnded = false;
+    return true;
+}
+
+function handleExplanationStartLine(ctx, line) {
+    const lower = line.toLowerCase();
+    if (!(lower.startsWith('explanation:') || lower.startsWith('explain:') || lower === 'explanation')) {
+        return false;
+    }
+    ctx.inChoices = false;
+    ctx.explanationEnded = false;
+    ctx.questionEnded = false;
+    // Strip any repeated "Explanation:" / "Explain:" prefixes.
+    let stripped = line;
+    let prev;
+    do {
+        prev = stripped;
+        stripped = stripped.replace(/^(explanation|explain):\s*/i, '');
+    } while (stripped !== prev);
+    ctx.explanation = (stripped && stripped.toLowerCase() !== 'explanation') ? stripped : '';
+    return true;
+}
+
+function handleEndExplanationLine(ctx, line) {
+    const lower = line.toLowerCase();
+    if (!(lower === 'end explanation' || lower.startsWith('end explanation'))) return false;
+    if (ctx.questionText && ctx.choices.length > 0) finalizeProblem(ctx);
+    ctx.explanationEnded = true;
+    ctx.questionEnded = false;
+    return true;
+}
+
+function handleEndQuestionLine(ctx, line) {
+    const lower = line.toLowerCase();
+    if (!(lower === 'endquestion' || lower.startsWith('endquestion'))) return false;
+    ctx.questionEnded = true;
+    ctx.inChoices = true;
+    return true;
+}
+
+function handleExplanationContinuation(ctx, line) {
+    // We're accumulating explanation text when the problem body is complete
+    // (choices or pendingAnswer) and we haven't seen "End Explanation".
+    const accumulating = !ctx.inChoices && !ctx.explanationEnded &&
+                         ((ctx.questionText && ctx.choices.length > 0) || ctx.pendingAnswer);
+    if (!accumulating) return false;
+
+    // If the line looks like the START of the next question, finalize and
+    // treat this line as the beginning of the next problem's question text.
+    const isSetup    = /^(suppose|consider|given|let|assume|if|imagine)\s+/i.test(line);
+    const isNewQ     = /^(what|which|why|how|when|where|who|does|is|are|can|should|would|will)\s+/i.test(line);
+    if (isSetup || isNewQ) {
+        finalizeProblem(ctx);
+        ctx.questionText = line;
+        return true;
+    }
+    ctx.explanation += (ctx.explanation ? ' ' : '') + line;
+    return true;
+}
+
+function handleChoiceLine(ctx, line) {
+    if (!(ctx.questionText && ctx.inChoices)) return false;
+    // Accept Latin A-Z, Greek Α-Ω, Cyrillic А-Я as prefix letters.
+    const choicePattern = /^[A-ZΑ-ΩА-Я]\.\s*/iu;
+    const lower = line.toLowerCase();
+    const isStopMarker =
+        line.match(/^Correct:\s*/i) ||
+        lower.startsWith('explanation:') ||
+        lower.startsWith('explain:') ||
+        lower === 'explanation';
+    if (isStopMarker) return false; // let a later handler catch it
+
+    ctx.awaitingQuestionBody = false;
+    const isPrefixed = choicePattern.test(line);
+    if (!isPrefixed && !line) return false;
+
+    const isCorrect =
+        lower.includes('(correct)') ||
+        lower.includes('(correct answer)') ||
+        line.includes('**(correct');
+    let choiceText = line;
+    if (isPrefixed) choiceText = choiceText.replace(/^[A-ZΑ-ΩА-Я]\.\s*/iu, '');
+    choiceText = choiceText
+        .replace(/\*\*\(correct.*?\)\*\*/i, '')
+        .replace(/\(correct\s*answer\)/i, '')
+        .replace(/\(correct\)/i, '')
+        .replace(/\\$/, '')
+        .trim();
+    if (!choiceText) return true; // consumed but no data added (e.g. "A." on its own)
+
+    if (isCorrect) ctx.correctIndices.push(ctx.choices.length);
+    ctx.choices.push({ text: choiceText, correct: isCorrect });
+    return true;
+}
+
+function handleSetupFallthrough(ctx, line) {
+    // Absorbs plain lines into questionText when we're expecting the question
+    // body - right after a label (awaitingQuestionBody), right after "End
+    // Explanation" (explanationEnded), or mid-accumulation.
+    const canAccumulate = (ctx.explanationEnded ||
+                           ctx.awaitingQuestionBody ||
+                           (ctx.questionText && !ctx.inChoices && ctx.choices.length === 0)) &&
+                          !ctx.questionEnded && line &&
+                          !line.startsWith('\\section') && !line.startsWith('\\subsection');
+    if (!canAccumulate) return false;
+    ctx.questionText = ctx.questionText ? ctx.questionText + ' ' + line : line;
+    return true;
 }
 
 /**
