@@ -1398,11 +1398,12 @@ function attachEditListeners() {
     editListenersInitialized = true;
 }
 
-// Debounce timer for edit sanitization + OLX regeneration. Every
-// keystroke in a contenteditable field would otherwise walk the DOM
-// via sanitizeHtml and rebuild the entire OLX document, which gets
-// slow on large inputs.
-let handleEditDebounce = null;
+// Debounce timer for the expensive OLX regeneration only. The per-keystroke
+// state update (sanitize + assign) runs immediately so that rapidly moving
+// focus between fields does not drop edits: a prior pending timer would
+// have been cleared, losing any edit that was only captured in its deferred
+// callback.
+let updateOlxDebounce = null;
 
 function handleEdit(e) {
     const el = e.target;
@@ -1413,29 +1414,28 @@ function handleEdit(e) {
     if (isNaN(problemIndex) || !currentProblems[problemIndex]) return;
     if (choiceIndex !== null && isNaN(choiceIndex)) return;
 
-    clearTimeout(handleEditDebounce);
-    handleEditDebounce = setTimeout(() => {
-        // The edited element may have been re-rendered since this
-        // event fired; guard against a stale reference.
-        if (!el.isConnected || !currentProblems[problemIndex]) return;
+    // Apply state immediately. sanitizeHtml walks only the single edited
+    // element's subtree so it's cheap per keystroke.
+    const content = field === 'answer'
+        ? el.textContent               // answers are plain text
+        : sanitizeHtml(el.innerHTML);
 
-        const content = field === 'answer'
-            ? el.textContent          // answers are plain text
-            : sanitizeHtml(el.innerHTML);
-
-        if (field === 'question') {
-            currentProblems[problemIndex].question = content;
-        } else if (field === 'explanation') {
-            currentProblems[problemIndex].explanation = content;
-        } else if (field === 'choice' && choiceIndex !== null) {
-            if (currentProblems[problemIndex].choices &&
-                currentProblems[problemIndex].choices[choiceIndex] !== undefined) {
-                currentProblems[problemIndex].choices[choiceIndex] = content;
-            }
-        } else if (field === 'answer') {
-            currentProblems[problemIndex].answer = content;
+    if (field === 'question') {
+        currentProblems[problemIndex].question = content;
+    } else if (field === 'explanation') {
+        currentProblems[problemIndex].explanation = content;
+    } else if (field === 'choice' && choiceIndex !== null) {
+        if (currentProblems[problemIndex].choices &&
+            currentProblems[problemIndex].choices[choiceIndex] !== undefined) {
+            currentProblems[problemIndex].choices[choiceIndex] = content;
         }
+    } else if (field === 'answer') {
+        currentProblems[problemIndex].answer = content;
+    }
 
+    // Coalesce the expensive rebuild across rapid keystrokes.
+    clearTimeout(updateOlxDebounce);
+    updateOlxDebounce = setTimeout(() => {
         updateOLXOutput();
     }, 150);
 }
