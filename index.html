@@ -1330,11 +1330,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             const tagPlaceholders = {};
             let placeholderIndex = 0;
+            // Per-call random suffix so that literal text like "__LATEX_0__"
+            // in user input can't collide with an internal placeholder.
+            const seed = Math.random().toString(36).slice(2, 10);
 
             // Protect \begin{center}...\end{center} blocks BEFORE converting line breaks
             // This preserves the entire block including newlines exactly as-is
             text = text.replace(/\\begin\{center\}([\s\S]*?)\\end\{center\}/g, (match, content) => {
-                const placeholder = `__CENTER_${placeholderIndex}__`;
+                const placeholder = `__CENTER_${seed}_${placeholderIndex}__`;
                 tagPlaceholders[placeholder] = match; // Keep the entire block unchanged
                 placeholderIndex++;
                 return placeholder;
@@ -1393,7 +1396,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             // Protect <ul>...</ul> blocks BEFORE converting line breaks
             // This prevents <br/> tags from being inserted between list elements
             result = result.replace(/<ul>([\s\S]*?)<\/ul>/gi, (match) => {
-                const placeholder = `__UL_${placeholderIndex}__`;
+                const placeholder = `__UL_${seed}_${placeholderIndex}__`;
                 tagPlaceholders[placeholder] = match;
                 placeholderIndex++;
                 return placeholder;
@@ -1414,7 +1417,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             latexPatterns.forEach(pattern => {
                 result = result.replace(pattern.regex, (match, content) => {
-                    const placeholder = `__LATEX_${placeholderIndex}__`;
+                    const placeholder = `__LATEX_${seed}_${placeholderIndex}__`;
                     tagPlaceholders[placeholder] = pattern.prefix + content + pattern.suffix;
                     placeholderIndex++;
                     return placeholder;
@@ -1424,7 +1427,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             // Protect anchor tags with href
             const anchorRegex = /<a\s+href="([^"]+)"(?:\s+target="([^"]+)")?(?:\s+rel="([^"]+)")?[^>]*>(.*?)<\/a>/gi;
             result = result.replace(anchorRegex, (match, href, target, rel, content) => {
-                const placeholder = `__ANCHOR_${placeholderIndex}__`;
+                const placeholder = `__ANCHOR_${seed}_${placeholderIndex}__`;
                 const escapedHref = escapeHtml(href);
                 const escapedContent = escapeHtml(content);
                 let tag = `<a href="${escapedHref}"`;
@@ -1442,7 +1445,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             // Protect <br/> tags (self-closing)
             result = result.replace(/<br\s*\/?>/gi, () => {
-                const placeholder = `__BR_${placeholderIndex}__`;
+                const placeholder = `__BR_${seed}_${placeholderIndex}__`;
                 tagPlaceholders[placeholder] = '<br/>';
                 placeholderIndex++;
                 return placeholder;
@@ -1453,7 +1456,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 if (tag === 'a' || tag === 'br') return; // Already handled
                 const tagRegex = new RegExp(`<${tag}>(.*?)<\/${tag}>`, 'gi');
                 result = result.replace(tagRegex, (match, content) => {
-                    const placeholder = `__TAG_${placeholderIndex}__`;
+                    const placeholder = `__TAG_${seed}_${placeholderIndex}__`;
                     tagPlaceholders[placeholder] = `<${tag}>${content}</${tag}>`;
                     placeholderIndex++;
                     return placeholder;
@@ -1476,11 +1479,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             const tagPlaceholders = {};
             let placeholderIndex = 0;
+            // Per-call random suffix so literal text like "__LATEX_0__" in
+            // user input cannot collide with an internal placeholder.
+            const seed = Math.random().toString(36).slice(2, 10);
 
             // Protect \begin{center}...\end{center} blocks BEFORE converting line breaks
             // This preserves the entire block including newlines exactly as-is
             text = text.replace(/\\begin\{center\}([\s\S]*?)\\end\{center\}/g, (match, content) => {
-                const placeholder = `__CENTER_${placeholderIndex}__`;
+                const placeholder = `__CENTER_${seed}_${placeholderIndex}__`;
                 tagPlaceholders[placeholder] = match; // Keep the entire block unchanged
                 placeholderIndex++;
                 return placeholder;
@@ -1538,7 +1544,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             // Protect <ul>...</ul> blocks BEFORE converting line breaks
             // This prevents <br/> tags from being inserted between list elements
             protected = protected.replace(/<ul>([\s\S]*?)<\/ul>/gi, (match) => {
-                const placeholder = `__UL_${placeholderIndex}__`;
+                const placeholder = `__UL_${seed}_${placeholderIndex}__`;
                 tagPlaceholders[placeholder] = match;
                 placeholderIndex++;
                 return placeholder;
@@ -1557,7 +1563,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             latexPatterns.forEach(pattern => {
                 protected = protected.replace(pattern.regex, (match, content) => {
-                    const placeholder = `__LATEX_${placeholderIndex}__`;
+                    const placeholder = `__LATEX_${seed}_${placeholderIndex}__`;
                     tagPlaceholders[placeholder] = pattern.prefix + content + pattern.suffix;
                     placeholderIndex++;
                     return placeholder;
@@ -1567,7 +1573,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             // Protect anchor tags with href and optional target
             const anchorRegex = /<a\s+href="([^"]+)"(?:\s+target="([^"]+)")?(?:\s+rel="([^"]+)")?[^>]*>(.*?)<\/a>/gi;
             protected = protected.replace(anchorRegex, (match, href, target, rel, content) => {
-                const placeholder = `__ANCHOR_${placeholderIndex}__`;
+                const placeholder = `__ANCHOR_${seed}_${placeholderIndex}__`;
                 let tag = `<a href="${href}"`;
                 if (target) {
                     tag += ` target="${target}"`;
@@ -1580,11 +1586,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 placeholderIndex++;
                 return placeholder;
             });
-            
+
             // Protect pre>code blocks
             const preCodeRegex = /<pre><code(?:\s+class="([^"]+)")?(?:\s+data-language="([^"]+)")?>([\s\S]*?)<\/code><\/pre>/gi;
             protected = protected.replace(preCodeRegex, (match, className, lang, content) => {
-                const placeholder = `__PRECODE_${placeholderIndex}__`;
+                const placeholder = `__PRECODE_${seed}_${placeholderIndex}__`;
                 let tag = '<pre><code';
                 if (className) {
                     tag += ` class="${className}"`;
@@ -1605,7 +1611,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             // Protect <br/> tags (self-closing)
             protected = protected.replace(/<br\s*\/?>/gi, () => {
-                const placeholder = `__BR_${placeholderIndex}__`;
+                const placeholder = `__BR_${seed}_${placeholderIndex}__`;
                 tagPlaceholders[placeholder] = '<br/>';
                 placeholderIndex++;
                 return placeholder;
@@ -1615,16 +1621,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 if (tag === 'a' || tag === 'pre' || tag === 'br') return; // Already handled
                 const openRegex = new RegExp(`<${tag}>`, 'gi');
                 const closeRegex = new RegExp(`</${tag}>`, 'gi');
-                
+
                 protected = protected.replace(openRegex, () => {
-                    const placeholder = `__PLACEHOLDER_${placeholderIndex}__`;
+                    const placeholder = `__PLACEHOLDER_${seed}_${placeholderIndex}__`;
                     tagPlaceholders[placeholder] = `<${tag}>`;
                     placeholderIndex++;
                     return placeholder;
                 });
-                
+
                 protected = protected.replace(closeRegex, () => {
-                    const placeholder = `__PLACEHOLDER_${placeholderIndex}__`;
+                    const placeholder = `__PLACEHOLDER_${seed}_${placeholderIndex}__`;
                     tagPlaceholders[placeholder] = `</${tag}>`;
                     placeholderIndex++;
                     return placeholder;
@@ -2814,6 +2820,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
             editListenersInitialized = true;
         }
         
+        // Debounce timer for edit sanitization + OLX regeneration. Every
+        // keystroke in a contenteditable field would otherwise walk the DOM
+        // via sanitizeHtml and rebuild the entire OLX document, which gets
+        // slow on large inputs.
+        let handleEditDebounce = null;
+
         function handleEdit(e) {
             const el = e.target;
             const problemIndex = parseInt(el.dataset.problem, 10);
@@ -2823,23 +2835,31 @@ Explanation: Sales by category represents distinct groups."></textarea>
             if (isNaN(problemIndex) || !currentProblems[problemIndex]) return;
             if (choiceIndex !== null && isNaN(choiceIndex)) return;
 
-            const content = sanitizeHtml(el.innerHTML);
+            clearTimeout(handleEditDebounce);
+            handleEditDebounce = setTimeout(() => {
+                // The edited element may have been re-rendered since this
+                // event fired; guard against a stale reference.
+                if (!el.isConnected || !currentProblems[problemIndex]) return;
 
-            if (field === 'question') {
-                currentProblems[problemIndex].question = content;
-            } else if (field === 'explanation') {
-                currentProblems[problemIndex].explanation = content;
-            } else if (field === 'choice' && choiceIndex !== null) {
-                if (currentProblems[problemIndex].choices && currentProblems[problemIndex].choices[choiceIndex] !== undefined) {
-                    currentProblems[problemIndex].choices[choiceIndex] = content;
+                const content = field === 'answer'
+                    ? el.textContent          // answers are plain text
+                    : sanitizeHtml(el.innerHTML);
+
+                if (field === 'question') {
+                    currentProblems[problemIndex].question = content;
+                } else if (field === 'explanation') {
+                    currentProblems[problemIndex].explanation = content;
+                } else if (field === 'choice' && choiceIndex !== null) {
+                    if (currentProblems[problemIndex].choices &&
+                        currentProblems[problemIndex].choices[choiceIndex] !== undefined) {
+                        currentProblems[problemIndex].choices[choiceIndex] = content;
+                    }
+                } else if (field === 'answer') {
+                    currentProblems[problemIndex].answer = content;
                 }
-            } else if (field === 'answer') {
-                // Answers should be plain text - use textContent to strip any HTML
-                currentProblems[problemIndex].answer = el.textContent;
-            }
-            
-            // Update OLX output
-            updateOLXOutput();
+
+                updateOLXOutput();
+            }, 150);
         }
         
         function handleFocus(e) {
