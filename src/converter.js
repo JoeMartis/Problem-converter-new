@@ -4,6 +4,10 @@
 // index.html continue to work without modification.
 
 let currentProblems = [];
+// Library metadata captured at parse time so that a later download can use
+// the same org / id / name the user saw in the preview, even if the input
+// textarea has been edited or cleared since the conversion.
+let currentLibraryMeta = null;
 let currentPreviewIndex = 0;
 let showAllMode = true;
 let previewEnabled = true;
@@ -350,16 +354,19 @@ function escapeXmlWithFormatting(text) {
         });
     });
 
-    // Protect anchor tags with href and optional target
+    // Protect anchor tags with href and optional target. Attribute values
+    // must be XML-escaped: the source regex only rejects `"` inside values,
+    // so `<`, `>`, `&` can still reach the placeholder and end up emitted
+    // as raw characters if not escaped here.
     const anchorRegex = /<a\s+href="([^"]+)"(?:\s+target="([^"]+)")?(?:\s+rel="([^"]+)")?[^>]*>(.*?)<\/a>/gi;
     guarded = guarded.replace(anchorRegex, (match, href, target, rel, content) => {
         const placeholder = `__ANCHOR_${seed}_${placeholderIndex}__`;
-        let tag = `<a href="${href}"`;
+        let tag = `<a href="${escapeXml(href)}"`;
         if (target) {
-            tag += ` target="${target}"`;
+            tag += ` target="${escapeXml(target)}"`;
         }
         if (rel) {
-            tag += ` rel="${rel}"`;
+            tag += ` rel="${escapeXml(rel)}"`;
         }
         tag += `>${content}</a>`;
         tagPlaceholders[placeholder] = tag;
@@ -367,16 +374,16 @@ function escapeXmlWithFormatting(text) {
         return placeholder;
     });
 
-    // Protect pre>code blocks
+    // Protect pre>code blocks. Same attribute-escape concern as anchors.
     const preCodeRegex = /<pre><code(?:\s+class="([^"]+)")?(?:\s+data-language="([^"]+)")?>([\s\S]*?)<\/code><\/pre>/gi;
     guarded = guarded.replace(preCodeRegex, (match, className, lang, content) => {
         const placeholder = `__PRECODE_${seed}_${placeholderIndex}__`;
         let tag = '<pre><code';
         if (className) {
-            tag += ` class="${className}"`;
+            tag += ` class="${escapeXml(className)}"`;
         }
         if (lang) {
-            tag += ` data-language="${lang}"`;
+            tag += ` data-language="${escapeXml(lang)}"`;
         }
         // Escape the content inside code blocks
         const escapedContent = content
@@ -1434,7 +1441,8 @@ function handleEdit(e) {
 }
 
 function handleFocus(e) {
-    document.getElementById('editIndicator').style.display = 'inline-flex';
+    const indicator = document.getElementById('editIndicator');
+    if (indicator) indicator.style.display = 'inline-flex';
 }
 
 function handleBlur(e) {
@@ -1925,6 +1933,12 @@ function convertToOLX() {
         }
         
         currentProblems = problems;
+        currentLibraryMeta = {
+            libraryOrg: result.libraryOrg,
+            libraryName: result.libraryName,
+            libraryId: result.libraryId,
+            displayNameLabel: result.displayNameLabel,
+        };
         currentPreviewIndex = 0;
         showAllMode = true;
         
@@ -2115,9 +2129,15 @@ async function downloadLibrary() {
     libraryDownloadInProgress = true;
     let url;
     try {
-        const input = document.getElementById('input').value;
-        const result = parseProblems(input);
-        
+        // Use the metadata captured at parse time so that edits, text-area
+        // changes, or a cleared input cannot desynchronize the library
+        // header from the currentProblems being exported.
+        const meta = currentLibraryMeta || {
+            libraryOrg: 'MITxT',
+            libraryName: 'Problem Library',
+            libraryId: 'CustomLibrary',
+        };
+
         const problemXMLs = currentProblems.map((problem, index) => {
             const problemId = `problem_${generateUUID()}`;
             return {
@@ -2126,15 +2146,15 @@ async function downloadLibrary() {
                 content: generateSingleProblemXML(problem, index, problemId)
             };
         });
-        
-        let libraryXML = `<library org="${escapeXml(result.libraryOrg)}" library="${escapeXml(result.libraryId)}" display_name="${escapeXml(result.libraryName)}">\n`;
+
+        let libraryXML = `<library org="${escapeXml(meta.libraryOrg)}" library="${escapeXml(meta.libraryId)}" display_name="${escapeXml(meta.libraryName)}">\n`;
         for (const pf of problemXMLs) {
             libraryXML += `  <problem url_name="${pf.id}"/>\n`;
         }
         libraryXML += `</library>`;
-        
+
         const zip = new JSZip();
-        const safeLibraryId = makeSafeFilename(result.libraryId);
+        const safeLibraryId = makeSafeFilename(meta.libraryId);
         const library = zip.folder(safeLibraryId);
         const problemFolder = library.folder('problem');
         const policiesFolder = library.folder('policies');
@@ -2175,6 +2195,7 @@ function clearAll() {
     document.getElementById('output').textContent = 'OLX output will appear here...';
     document.getElementById('status').style.display = 'none';
     currentProblems = [];
+    currentLibraryMeta = null;
     currentPreviewIndex = 0;
     showAllMode = true;
 
