@@ -671,6 +671,9 @@ function parseProblems(text) {
 // ---  can't know about until the whole problem is assembled -----------------
 
 function validateProblems(problems, warnings) {
+    const push = (problemIndex, code, severity, message) =>
+        warnings.push({ problemIndex, code, severity, source: 'validator', message });
+
     problems.forEach((p, i) => {
         const hasChoices = p.choices && p.choices.length > 0;
         const hasAnswer = p.answer !== undefined && p.answer !== '';
@@ -678,36 +681,31 @@ function validateProblems(problems, warnings) {
         const placeholder = (p.explanation || '').trim() === 'Add your explanation here';
 
         if (!p.question || !p.question.trim()) {
-            warnings.push({ problemIndex: i, code: 'empty_question',
-                severity: 'warn',
-                message: 'Problem has no question text.' });
+            push(i, 'empty_question', 'warn', 'Problem has no question text.');
         }
         if (!hasChoices && !hasAnswer) {
-            warnings.push({ problemIndex: i, code: 'no_content',
-                severity: 'warn',
-                message: 'No choices or answer detected.' });
+            push(i, 'no_content', 'warn', 'No choices or answer detected.');
         }
         if (hasChoices && !hasCorrect) {
-            warnings.push({ problemIndex: i, code: 'no_correct_marker',
-                severity: 'warn',
-                message: 'Choices were found but no correct answer was marked.' });
+            push(i, 'no_correct_marker', 'warn',
+                'Choices were found but no correct answer was marked.');
         }
         if (hasChoices && p.choices.length < 2) {
-            warnings.push({ problemIndex: i, code: 'too_few_choices',
-                severity: 'warn',
-                message: `Only ${p.choices.length} choice(s) detected - minimum 2 expected.` });
+            push(i, 'too_few_choices', 'warn',
+                `Only ${p.choices.length} choice(s) detected - minimum 2 expected.`);
         }
         if (placeholder) {
-            warnings.push({ problemIndex: i, code: 'missing_explanation',
-                severity: 'info',
-                message: 'No explanation text found; the default placeholder will be used.' });
+            push(i, 'missing_explanation', 'info',
+                'No explanation text found; the default placeholder will be used.');
         }
         if (hasChoices) {
             p.choices.forEach((c, j) => {
-                if ((c || '').length > 400) {
-                    warnings.push({ problemIndex: i, code: 'choice_too_long',
-                        severity: 'info',
-                        message: `Choice ${String.fromCharCode(65 + j)} is unusually long (${c.length} chars) - may indicate explanation text was merged in.` });
+                const letter = String.fromCharCode(65 + j);
+                if (!c || !c.trim()) {
+                    push(i, 'empty_choice', 'warn', `Choice ${letter} is empty.`);
+                } else if (c.length > 400) {
+                    push(i, 'choice_too_long', 'info',
+                        `Choice ${letter} is unusually long (${c.length} chars) - may indicate explanation text was merged in.`);
                 }
             });
         }
@@ -968,6 +966,7 @@ function handleCorrectLine(ctx, line) {
                 problemIndex: ctx.problemCount,  // this problem will be pushed next
                 code: 'correct_out_of_range',
                 severity: 'warn',
+                source: 'parser',
                 message: `Correct: line references letter(s) ${letters} beyond the ${ctx.choices.length} choice(s) found; dropped.`,
             });
         }
@@ -977,6 +976,7 @@ function handleCorrectLine(ctx, line) {
             problemIndex: ctx.problemCount,
             code: 'correct_unparseable',
             severity: 'warn',
+            source: 'parser',
             message: `Correct: line has no recognizable A-Z letter (got ${JSON.stringify(rawLetters)}); ignored.`,
         });
     }
@@ -1965,17 +1965,16 @@ function updateOLXOutput() {
     output.textContent = olx;
     // Refresh warnings + stats now that currentProblems may have changed.
     revalidateWarnings();
-    updateStatistics(currentProblems);
+    updateStatistics(currentProblems, currentWarnings);
 }
 
 // Re-run validation against the in-memory problems and refresh the UI that
 // depends on it (panel + per-problem badges). Parser warnings captured at
 // initial parse time are preserved since they describe the raw source text
-// and don't become less true after an edit.
-const PARSER_WARNING_CODES = new Set(['correct_out_of_range', 'correct_unparseable']);
-
+// and don't become less true after an edit. We distinguish the two via a
+// `source` field set when the warning is created.
 function revalidateWarnings() {
-    const parserWarnings = currentWarnings.filter(w => PARSER_WARNING_CODES.has(w.code));
+    const parserWarnings = currentWarnings.filter(w => w.source === 'parser');
     const validationWarnings = [];
     validateProblems(currentProblems, validationWarnings);
     currentWarnings = [...parserWarnings, ...validationWarnings];
