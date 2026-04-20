@@ -852,7 +852,86 @@
             color: var(--error);
             display: block;
         }
-        
+
+        .warnings-panel {
+            background: rgba(255, 217, 61, 0.08);
+            border: 1px solid var(--warning);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            animation: slideIn 0.3s ease-out;
+        }
+        .warnings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 18px;
+            cursor: pointer;
+            user-select: none;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            color: var(--warning);
+        }
+        .warnings-header:hover {
+            background: rgba(255, 217, 61, 0.04);
+        }
+        .warnings-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .warnings-icon {
+            font-size: 1.1rem;
+        }
+        .warnings-toggle {
+            font-size: 0.7rem;
+            transition: transform 0.2s ease;
+        }
+        .warnings-panel.collapsed .warnings-toggle {
+            transform: rotate(-90deg);
+        }
+        .warnings-panel.collapsed .warnings-list {
+            display: none;
+        }
+        .warnings-list {
+            list-style: none;
+            padding: 0 18px 14px 18px;
+            margin: 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+        .warnings-list li {
+            padding: 4px 0;
+            color: var(--text-primary);
+            opacity: 0.85;
+        }
+        .warnings-list li .warn-problem {
+            color: var(--accent-secondary);
+            margin-right: 8px;
+        }
+        .warnings-list li.severity-info {
+            opacity: 0.6;
+        }
+
+        .preview-warning-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(255, 217, 61, 0.15);
+            color: var(--warning);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-left: 6px;
+        }
+
         .info-panel {
             background: var(--bg-secondary);
             border-radius: 12px;
@@ -1049,7 +1128,18 @@
         </div>
         
         <div id="status" class="status"></div>
-        
+
+        <div id="warningsPanel" class="warnings-panel" style="display:none;">
+            <div class="warnings-header" onclick="toggleWarnings()">
+                <span class="warnings-title">
+                    <span class="warnings-icon">⚠</span>
+                    <span id="warningsCount">0 warnings</span>
+                </span>
+                <span class="warnings-toggle" id="warningsToggle">▼</span>
+            </div>
+            <ul class="warnings-list" id="warningsList"></ul>
+        </div>
+
         <div class="main-grid three-col" id="mainGrid">
             <div class="panel">
                 <div class="panel-header">

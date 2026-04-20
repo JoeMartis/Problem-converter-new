@@ -8,6 +8,8 @@ let currentProblems = [];
 // the same org / id / name the user saw in the preview, even if the input
 // textarea has been edited or cleared since the conversion.
 let currentLibraryMeta = null;
+// Warnings surfaced after the latest conversion (parser + validation).
+let currentWarnings = [];
 let currentPreviewIndex = 0;
 let showAllMode = true;
 let previewEnabled = true;
@@ -633,6 +635,11 @@ function parseProblems(text) {
             libraryOrg: header.libraryOrg,
             libraryName: header.libraryName,
             libraryId: header.libraryId,
+            // Parser + validation warnings surfaced to the UI. Each entry
+            // is { problemIndex, code, message, severity } where
+            // severity is 'warn' or 'info'. problemIndex === -1 means
+            // the warning isn't tied to a specific problem.
+            warnings: [],
         },
         questionText: '',
         choices: [],
@@ -653,8 +660,58 @@ function parseProblems(text) {
     }
     finalizeProblem(ctx);
 
+    // Post-parse validation surfaced alongside the parser warnings.
+    validateProblems(ctx.out.problems, ctx.out.warnings);
+
     if (!ctx.out.displayNameLabel) ctx.out.displayNameLabel = 'Problem';
     return ctx.out;
+}
+
+// --- post-parse validation: catches shape issues that individual handlers
+// ---  can't know about until the whole problem is assembled -----------------
+
+function validateProblems(problems, warnings) {
+    problems.forEach((p, i) => {
+        const hasChoices = p.choices && p.choices.length > 0;
+        const hasAnswer = p.answer !== undefined && p.answer !== '';
+        const hasCorrect = (p.correctIndices && p.correctIndices.length > 0);
+        const placeholder = (p.explanation || '').trim() === 'Add your explanation here';
+
+        if (!p.question || !p.question.trim()) {
+            warnings.push({ problemIndex: i, code: 'empty_question',
+                severity: 'warn',
+                message: 'Problem has no question text.' });
+        }
+        if (!hasChoices && !hasAnswer) {
+            warnings.push({ problemIndex: i, code: 'no_content',
+                severity: 'warn',
+                message: 'No choices or answer detected.' });
+        }
+        if (hasChoices && !hasCorrect) {
+            warnings.push({ problemIndex: i, code: 'no_correct_marker',
+                severity: 'warn',
+                message: 'Choices were found but no correct answer was marked.' });
+        }
+        if (hasChoices && p.choices.length < 2) {
+            warnings.push({ problemIndex: i, code: 'too_few_choices',
+                severity: 'warn',
+                message: `Only ${p.choices.length} choice(s) detected - minimum 2 expected.` });
+        }
+        if (placeholder) {
+            warnings.push({ problemIndex: i, code: 'missing_explanation',
+                severity: 'info',
+                message: 'No explanation text found; the default placeholder will be used.' });
+        }
+        if (hasChoices) {
+            p.choices.forEach((c, j) => {
+                if ((c || '').length > 400) {
+                    warnings.push({ problemIndex: i, code: 'choice_too_long',
+                        severity: 'info',
+                        message: `Choice ${String.fromCharCode(65 + j)} is unusually long (${c.length} chars) - may indicate explanation text was merged in.` });
+                }
+            });
+        }
+    });
 }
 
 // --- header pre-scan: org / library id / initial label ---------------------
@@ -906,11 +963,22 @@ function handleCorrectLine(ctx, line) {
         const parsed = letterMatches.map(letter => letter.charCodeAt(0) - 'A'.charCodeAt(0));
         const outOfRange = parsed.filter(idx => idx < 0 || idx >= ctx.choices.length);
         if (outOfRange.length > 0) {
-            console.warn(`Correct: letters reference indices beyond ${ctx.choices.length} choices - dropped:`, outOfRange);
+            const letters = outOfRange.map(idx => String.fromCharCode(65 + idx)).join(', ');
+            ctx.out.warnings.push({
+                problemIndex: ctx.problemCount,  // this problem will be pushed next
+                code: 'correct_out_of_range',
+                severity: 'warn',
+                message: `Correct: line references letter(s) ${letters} beyond the ${ctx.choices.length} choice(s) found; dropped.`,
+            });
         }
         ctx.correctIndices = parsed.filter(idx => idx >= 0 && idx < ctx.choices.length);
     } else if (rawLetters) {
-        console.warn(`Correct: line contains no recognizable A-Z letters - ignored:`, JSON.stringify(rawLetters));
+        ctx.out.warnings.push({
+            problemIndex: ctx.problemCount,
+            code: 'correct_unparseable',
+            severity: 'warn',
+            message: `Correct: line has no recognizable A-Z letter (got ${JSON.stringify(rawLetters)}); ignored.`,
+        });
     }
     ctx.inChoices = false;
     ctx.questionEnded = false;
@@ -1223,6 +1291,42 @@ function updateStatistics(problems) {
     }
 }
 
+function renderWarningsPanel(warnings, problems) {
+    const panel = document.getElementById('warningsPanel');
+    const count = document.getElementById('warningsCount');
+    const list = document.getElementById('warningsList');
+    if (!panel || !count || !list) return;
+
+    if (!warnings || warnings.length === 0) {
+        panel.style.display = 'none';
+        list.innerHTML = '';
+        return;
+    }
+
+    panel.style.display = 'block';
+    panel.classList.remove('collapsed');
+    count.textContent = `${warnings.length} warning${warnings.length === 1 ? '' : 's'}`;
+
+    list.innerHTML = warnings.map(w => {
+        const problem = w.problemIndex >= 0 && problems ? problems[w.problemIndex] : null;
+        const label = problem
+            ? `[${escapeHtml(problem.title)}]`
+            : (w.problemIndex >= 0 ? `[Problem ${w.problemIndex + 1}]` : '');
+        const sevClass = w.severity === 'info' ? 'severity-info' : 'severity-warn';
+        return `<li class="${sevClass}"><span class="warn-problem">${escapeHtml(label)}</span>${escapeHtml(w.message)}</li>`;
+    }).join('');
+}
+
+function toggleWarnings() {
+    const panel = document.getElementById('warningsPanel');
+    if (panel) panel.classList.toggle('collapsed');
+}
+
+// Count warnings attached to a given problem index.
+function warningsForProblem(problemIndex) {
+    return currentWarnings.filter(w => w.problemIndex === problemIndex);
+}
+
 function renderPreview(problems) {
     const container = document.getElementById('previewContainer');
     const countBadge = document.getElementById('previewCount');
@@ -1344,10 +1448,15 @@ function renderProblemHTML(problem, index) {
         `;
     }
 
+    const problemWarnings = warningsForProblem(index);
+    const warnBadge = problemWarnings.length > 0
+        ? `<span class="preview-warning-badge" title="${escapeHtml(problemWarnings.map(w => w.message).join('\n'))}">⚠ ${problemWarnings.length}</span>`
+        : '';
+
     return `
         <div class="preview-problem" data-index="${index}">
             <div class="preview-problem-header">
-                <span class="preview-problem-title">${escapeHtmlWithFormatting(problem.title || '')}</span>
+                <span class="preview-problem-title">${escapeHtmlWithFormatting(problem.title || '')}${warnBadge}</span>
                 <span class="preview-problem-type ${typeClass}">${typeName}</span>
             </div>
             <div class="preview-question editable" contenteditable="true" data-problem="${index}" data-field="question">${escapeHtmlWithFormatting(problem.question || '')}</div>
@@ -1939,20 +2048,23 @@ function convertToOLX() {
             libraryId: result.libraryId,
             displayNameLabel: result.displayNameLabel,
         };
+        currentWarnings = result.warnings || [];
         currentPreviewIndex = 0;
         showAllMode = true;
-        
+
         const olx = generateOLX(problems);
         output.textContent = olx;
-        
+
         updateStatistics(problems);
-        
+        renderWarningsPanel(currentWarnings, problems);
+
         if (previewEnabled) {
             renderPreview(problems);
         }
-        
+
         const labelMsg = result.displayNameLabel ? ` (using label: "${result.displayNameLabel}")` : '';
-        showStatus(`Successfully converted ${problems.length} problem(s)${labelMsg} - Click text in preview to edit`, 'success');
+        const warnMsg = currentWarnings.length > 0 ? ` • ${currentWarnings.length} warning(s)` : '';
+        showStatus(`Successfully converted ${problems.length} problem(s)${labelMsg}${warnMsg} - Click text in preview to edit`, 'success');
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
         console.error(error);
@@ -2194,8 +2306,11 @@ function clearAll() {
     document.getElementById('input').value = '';
     document.getElementById('output').textContent = 'OLX output will appear here...';
     document.getElementById('status').style.display = 'none';
+    const wp = document.getElementById('warningsPanel');
+    if (wp) wp.style.display = 'none';
     currentProblems = [];
     currentLibraryMeta = null;
+    currentWarnings = [];
     currentPreviewIndex = 0;
     showAllMode = true;
 

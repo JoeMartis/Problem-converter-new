@@ -307,6 +307,34 @@ t.case('makeSafeFilename neutralizes path traversal', () => {
     assert(!out.includes('..'));
 });
 
+// --- warnings surfaced via parseProblems().warnings --------------------
+
+t.case('parseProblems surfaces "no correct marker" warning', () => {
+    const r = api.parseProblems('Q?\nA. a\nB. b\nC. c\nExplanation: e.');
+    const w = r.warnings.find(x => x.code === 'no_correct_marker');
+    assert(w, `expected no_correct_marker warning, got ${JSON.stringify(r.warnings)}`);
+    assertEqual(w.problemIndex, 0);
+});
+
+t.case('parseProblems surfaces "missing explanation" info', () => {
+    const r = api.parseProblems('Q?\nA. a\nB. b (correct)\nC. c');
+    assert(r.warnings.some(w => w.code === 'missing_explanation'));
+});
+
+t.case('parseProblems surfaces "correct_out_of_range" warning', () => {
+    const r = api.parseProblems('Q?\nA. a\nB. b\nCorrect: Z\nExplanation: e.');
+    const w = r.warnings.find(x => x.code === 'correct_out_of_range');
+    assert(w, 'expected correct_out_of_range warning');
+    assert(/Z/.test(w.message), `expected letter in message: ${w.message}`);
+});
+
+t.case('clean problems produce no warnings', () => {
+    const r = api.parseProblems(
+        'Q?\nA. a\nB. b\nC. c (correct)\nD. d\nExplanation: because.'
+    );
+    assertEqual(r.warnings.length, 0);
+});
+
 // --- handleEdit commits state immediately even with interleaved fields -
 
 t.case('handleEdit applies state per-keystroke (no cross-field loss)', () => {
