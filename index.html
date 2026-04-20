@@ -1737,13 +1737,64 @@ Explanation: Sales by category represents distinct groups."></textarea>
             return text;
         }
 
+        // Turn LaTeX-labelled multiple-choice math into "X. <latex>" lines that
+        // the ordinary choice-parser already understands. Handles two common
+        // authoring patterns seen in real .docx sources.
+        function normalizeLatexChoices(text) {
+            if (!text) return text;
+
+            // Pattern 1: a single align / align* / aligned environment that
+            // contains multiple "\mathbf{(X)}" labels. Split by label.
+            text = text.replace(
+                /\\begin\{(align\*?|aligned)\}([\s\S]*?)\\end\{\1\}/g,
+                (match, env, inner) => {
+                    const labelRe = /\\mathbf\{\(([A-Z])\)\}/g;
+                    const labels = [];
+                    let m;
+                    while ((m = labelRe.exec(inner)) !== null) {
+                        labels.push({ letter: m[1], start: m.index, end: m.index + m[0].length });
+                    }
+                    if (labels.length < 2) return match;
+                    const out = [];
+                    for (let i = 0; i < labels.length; i++) {
+                        const from = labels[i].end;
+                        const to = i + 1 < labels.length ? labels[i + 1].start : inner.length;
+                        let content = inner.substring(from, to)
+                            .replace(/\s*\n\s*/g, ' ')       // flatten so the choice fits on one line
+                            .replace(/\s+/g, ' ')
+                            .replace(/\\\\\s*$/, '')         // drop trailing alignment separator
+                            .trim();
+                        if (!content) continue;
+                        out.push(labels[i].letter + '. $$\\begin{aligned} ' + content + ' \\end{aligned}$$');
+                    }
+                    return '\n' + out.join('\n') + '\n';
+                }
+            );
+
+            // Pattern 2: "$$...\mathbf{(X)}...$$" blocks each carrying one label.
+            // Rewrite to "X. $$...$$" lines so the choice-letter pattern fires.
+            text = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
+                const labelMatch = inner.match(/\\mathbf\{\(([A-Z])\)\}/);
+                if (!labelMatch) return match;
+                const letter = labelMatch[1];
+                const cleaned = inner
+                    .replace(/\\mathbf\{\([A-Z]\)\}\s*/, '')
+                    .replace(/\s*\n\s*/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                return '\n' + letter + '. $$' + cleaned + '$$\n';
+            });
+
+            return text;
+        }
+
         function parseProblems(text) {
             const problems = [];
 
             // Split "1. What ... 2. What ..." runs into separate lines, but do NOT
             // split inside expressions like "x=0. Which" where the number is
             // attached to a previous token (avoid false positives on math).
-            let normalizedText = preNormalizeEmphasis(text)
+            let normalizedText = normalizeLatexChoices(preNormalizeEmphasis(text))
                 .replace(/(^|\s)(\d+\.\s+[A-Z])/g, '$1\n$2')
                 .replace(/(Part\s+\d+\s+Question\s+\d+)/gi, '\n\n$1\n')
                 .replace(/(\*\*Original:)/gi, '\n\n$1');
