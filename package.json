@@ -1,0 +1,16 @@
+{
+  "name": "olx-problem-converter",
+  "version": "5.0.0-alpha",
+  "private": true,
+  "description": "Convert problem text (.txt / .docx) into Open edX OLX XML. Browser-based, single-file app plus a Node test suite.",
+  "type": "module",
+  "scripts": {
+    "test": "node test/run.mjs",
+    "test:unit": "node test/run.mjs --unit",
+    "test:assignments": "node test/run.mjs --assignments"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0",
+    "mammoth": "^1.6.0"
+  }
+}

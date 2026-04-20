@@ -1539,11 +1539,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
             text = text.replace(/`([^`]+?)`/g, '<code>$1</code>');
 
             const allowedTags = ['strong', 'em', 'u', 'sup', 'sub', 'code', 'a', 'b', 'i', 'pre', 'br', 'ul', 'li'];
-            let protected = text;
+            let guarded = text;
 
             // Protect <ul>...</ul> blocks BEFORE converting line breaks
             // This prevents <br/> tags from being inserted between list elements
-            protected = protected.replace(/<ul>([\s\S]*?)<\/ul>/gi, (match) => {
+            guarded = guarded.replace(/<ul>([\s\S]*?)<\/ul>/gi, (match) => {
                 const placeholder = `__UL_${seed}_${placeholderIndex}__`;
                 tagPlaceholders[placeholder] = match;
                 placeholderIndex++;
@@ -1551,7 +1551,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             });
 
             // Convert line breaks to <br/> tags after protecting list structures
-            protected = protected.replace(/\n/g, '<br/>');
+            guarded = guarded.replace(/\n/g, '<br/>');
 
             // Protect LaTeX expressions (both inline and display)
             const latexPatterns = [
@@ -1562,7 +1562,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             ];
 
             latexPatterns.forEach(pattern => {
-                protected = protected.replace(pattern.regex, (match, content) => {
+                guarded = guarded.replace(pattern.regex, (match, content) => {
                     const placeholder = `__LATEX_${seed}_${placeholderIndex}__`;
                     tagPlaceholders[placeholder] = pattern.prefix + content + pattern.suffix;
                     placeholderIndex++;
@@ -1572,7 +1572,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             // Protect anchor tags with href and optional target
             const anchorRegex = /<a\s+href="([^"]+)"(?:\s+target="([^"]+)")?(?:\s+rel="([^"]+)")?[^>]*>(.*?)<\/a>/gi;
-            protected = protected.replace(anchorRegex, (match, href, target, rel, content) => {
+            guarded = guarded.replace(anchorRegex, (match, href, target, rel, content) => {
                 const placeholder = `__ANCHOR_${seed}_${placeholderIndex}__`;
                 let tag = `<a href="${href}"`;
                 if (target) {
@@ -1589,7 +1589,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
             // Protect pre>code blocks
             const preCodeRegex = /<pre><code(?:\s+class="([^"]+)")?(?:\s+data-language="([^"]+)")?>([\s\S]*?)<\/code><\/pre>/gi;
-            protected = protected.replace(preCodeRegex, (match, className, lang, content) => {
+            guarded = guarded.replace(preCodeRegex, (match, className, lang, content) => {
                 const placeholder = `__PRECODE_${seed}_${placeholderIndex}__`;
                 let tag = '<pre><code';
                 if (className) {
@@ -1610,7 +1610,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             });
 
             // Protect <br/> tags (self-closing)
-            protected = protected.replace(/<br\s*\/?>/gi, () => {
+            guarded = guarded.replace(/<br\s*\/?>/gi, () => {
                 const placeholder = `__BR_${seed}_${placeholderIndex}__`;
                 tagPlaceholders[placeholder] = '<br/>';
                 placeholderIndex++;
@@ -1622,14 +1622,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 const openRegex = new RegExp(`<${tag}>`, 'gi');
                 const closeRegex = new RegExp(`</${tag}>`, 'gi');
 
-                protected = protected.replace(openRegex, () => {
+                guarded = guarded.replace(openRegex, () => {
                     const placeholder = `__PLACEHOLDER_${seed}_${placeholderIndex}__`;
                     tagPlaceholders[placeholder] = `<${tag}>`;
                     placeholderIndex++;
                     return placeholder;
                 });
 
-                protected = protected.replace(closeRegex, () => {
+                guarded = guarded.replace(closeRegex, () => {
                     const placeholder = `__PLACEHOLDER_${seed}_${placeholderIndex}__`;
                     tagPlaceholders[placeholder] = `</${tag}>`;
                     placeholderIndex++;
@@ -1637,7 +1637,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 });
             });
             
-            protected = String(protected)
+            guarded = String(guarded)
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
@@ -1645,10 +1645,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 .replace(/'/g, '&apos;');
             
             Object.keys(tagPlaceholders).forEach(placeholder => {
-                protected = protected.replace(placeholder, tagPlaceholders[placeholder]);
+                guarded = guarded.replace(placeholder, tagPlaceholders[placeholder]);
             });
             
-            return protected;
+            return guarded;
         }
         
         function cleanText(text) {
@@ -2125,12 +2125,19 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
                 
-                // Split on "Explanation:" only when it appears as a section marker
-                // (capital E, preceded by whitespace, followed by space + content).
-                // This avoids false splits when "explanation:" appears inside the answer text.
-                let answerMatch = line.match(/^Answer:\s*(.+?)\s+Explanation:\s+(.+)$/i);
-                if (!answerMatch) {
-                    answerMatch = line.match(/^Answer:\s*(.+)$/i);
+                // Match "Answer:" (any case) and optionally split off a
+                // trailing "Explanation: ..." section. The prefix is
+                // case-insensitive, but only a capital-E "Explanation:"
+                // triggers the split so answer text containing lowercase
+                // "explanation:" is preserved intact.
+                const answerPrefix = line.match(/^Answer:\s*(.+)$/i);
+                let answerMatch = null;
+                if (answerPrefix) {
+                    const rest = answerPrefix[1];
+                    const splitMatch = rest.match(/^(.+?)\s+Explanation:\s+(.+)$/);
+                    answerMatch = splitMatch
+                        ? [line, splitMatch[1], splitMatch[2]]
+                        : [line, rest];
                 }
                 if (answerMatch && questionText && choices.length === 0) {
                     // Finalize previous pending answer if exists
