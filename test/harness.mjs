@@ -14,12 +14,10 @@ import mammoth from 'mammoth';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..');
 
-// Extract the main <script> block from index.html and evaluate it against a
-// minimal jsdom document so we can call parseProblems / generateOLX / etc.
+// Load src/converter.js and evaluate it against a minimal jsdom document so
+// we can call parseProblems / generateOLX / etc.
 export function loadConverterApi() {
-    const html = readFileSync(resolve(repoRoot, 'index.html'), 'utf8');
-    const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
-    const parserScript = scripts[1]; // [0] is the MathJax config
+    const parserScript = readFileSync(resolve(repoRoot, 'src/converter.js'), 'utf8');
 
     const dom = new JSDOM('<!doctype html><html><body></body></html>');
     // Install the globals the parser relies on. Anything touching the real
