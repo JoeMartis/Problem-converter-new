@@ -1643,6 +1643,24 @@ Explanation: Sales by category represents distinct groups."></textarea>
         // Produce a filesystem-safe filename while preserving Unicode letters
         // and digits. Falls back to ASCII-only when Unicode property classes
         // aren't supported.
+        // Greek / Cyrillic uppercase letters that look identical to Latin A-Z.
+        // Used to normalize "Correct: A" lines pasted from Word/Greek keyboards.
+        const LATIN_LOOKALIKES = {
+            'Α':'A','Β':'B','Ε':'E','Ζ':'Z','Η':'H','Ι':'I','Κ':'K','Μ':'M',
+            'Ν':'N','Ο':'O','Ρ':'P','Τ':'T','Υ':'Y','Χ':'X',
+            'А':'A','В':'B','Е':'E','К':'K','М':'M','Н':'H','О':'O','Р':'P',
+            'С':'C','Т':'T','У':'Y','Х':'X'
+        };
+
+        function normalizeCorrectLetters(str) {
+            if (!str) return '';
+            // NFKC handles full-width A-Z; explicit map covers Greek/Cyrillic.
+            let s;
+            try { s = str.normalize('NFKC'); } catch (e) { s = str; }
+            s = s.toUpperCase();
+            return s.replace(/./g, ch => LATIN_LOOKALIKES[ch] || ch);
+        }
+
         function makeSafeFilename(name) {
             if (!name) return 'library';
             const trimmed = String(name).trim().replace(/\s+/g, '_');
@@ -1729,11 +1747,18 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         startIndex = i + 1;
                         break;
                     }
-                    
+
                     if (line.match(/^Part\s+\d+$/i)) {
                         continue;
                     }
-                    
+
+                    // Detect "Q-style" labels like "Q1-A", "Q2-B (Existing)" -
+                    // break so the main loop can treat them as question labels.
+                    if (line.match(/^Q\d+-[A-Za-z0-9]+(\s*\(.*\))?$/)) {
+                        startIndex = i;
+                        break;
+                    }
+
                     if (line.endsWith('?') || line.match(/^\d+\.\s+/) || line.match(/^Original:/i)) {
                         startIndex = i;
                         break;
@@ -1751,6 +1776,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             let explanationEnded = false;
             let questionEnded = false;
             let pendingAnswer = null; // Store answer info when waiting for explanation
+            let awaitingQuestionBody = false; // True after a label finalizes a problem, until question body starts
             
             for (let i = startIndex; i < lines.length; i++) {
                 const line = lines[i].trim();
@@ -1804,7 +1830,51 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     currentLabel = line.trim();
                     continue;
                 }
-                
+
+                // Q-style label on its own line (e.g. "Q1-A", "Q2-B (Existing)").
+                // Finalize any in-progress problem and use the label as the next
+                // problem's title.
+                const qLabelMatch = line.match(/^(Q\d+-[A-Za-z0-9]+)\s*(\(.*\))?$/);
+                if (qLabelMatch) {
+                    if (pendingAnswer) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(pendingAnswer.questionText),
+                            answer: pendingAnswer.answerValue,
+                            answerType: pendingAnswer.answerType,
+                            choices: [],
+                            correctIndices: [],
+                            isMultipleChoice: false,
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                        pendingAnswer = null;
+                        explanation = '';
+                    } else if (questionText && choices.length > 0) {
+                        problemCount++;
+                        const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
+                        problems.push({
+                            title: displayName,
+                            question: cleanText(questionText),
+                            choices: choices.map(c => cleanText(c.text)),
+                            correctIndices: correctIndices,
+                            isMultipleChoice: isProblemMultipleChoice(questionText, correctIndices.length),
+                            explanation: explanation ? cleanText(explanation) : 'Add your explanation here'
+                        });
+                    }
+                    questionText = '';
+                    choices = [];
+                    correctIndices = [];
+                    explanation = '';
+                    explanationEnded = false;
+                    questionEnded = false;
+                    inChoices = false;
+                    awaitingQuestionBody = true;
+                    currentLabel = qLabelMatch[1].trim();
+                    continue;
+                }
+
                 // Skip blank lines - don't finalize on them to allow blank lines between choices
                 if (!line) {
                     continue;
@@ -1902,15 +1972,18 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         questionEnded = false;
                     }
 
-                    // Append to existing questionText if we've been accumulating setup text after "End Explanation"
-                    if (explanationEnded && questionText) {
+                    // Append to existing questionText if we've been accumulating setup text.
+                    // This covers both post-"End Explanation" accumulation and ordinary
+                    // multi-line question bodies where only the final line ends with "?".
+                    const stillAccumulating = questionText && choices.length === 0 && !pendingAnswer;
+                    if ((explanationEnded || stillAccumulating) && questionText) {
                         questionText = questionText + ' ' + line;
-                        // Reset flags now that we've started the question proper
                         explanationEnded = false;
                         questionEnded = false;
                     } else {
                         questionText = line;
                     }
+                    awaitingQuestionBody = false;
                     inChoices = true;
                     continue;
                 }
@@ -1982,18 +2055,22 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 // Handle "Correct: A, C" format
                 const correctMatch = line.match(/^Correct:\s*(.+)/i);
                 if (correctMatch && questionText && choices.length > 0) {
-                    const correctLetters = correctMatch[1].trim();
-                    // Parse letters (A, B, C, etc.) and convert to indices
-                    const letterMatches = correctLetters.match(/[A-Z]/gi);
-                    if (letterMatches) {
+                    const rawLetters = correctMatch[1].trim();
+                    // Normalize lookalike characters (Greek Α, full-width Ａ, etc.)
+                    // before extracting letters.
+                    const normalized = normalizeCorrectLetters(rawLetters);
+                    const letterMatches = normalized.match(/[A-Z]/g);
+                    if (letterMatches && letterMatches.length > 0) {
                         const parsedIndices = letterMatches.map(letter => {
-                            return letter.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
+                            return letter.charCodeAt(0) - 'A'.charCodeAt(0);
                         });
                         const outOfRange = parsedIndices.filter(idx => idx < 0 || idx >= choices.length);
                         if (outOfRange.length > 0) {
                             console.warn(`Correct: letters reference indices beyond ${choices.length} choices - dropped:`, outOfRange);
                         }
                         correctIndices = parsedIndices.filter(index => index >= 0 && index < choices.length);
+                    } else if (rawLetters) {
+                        console.warn(`Correct: line contains no recognizable A-Z letters - ignored:`, JSON.stringify(rawLetters));
                     }
                     inChoices = false;
                     questionEnded = false; // Reset questionEnded flag after processing choices
@@ -2116,6 +2193,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 }
                 
                 if (questionText && inChoices) {
+                    awaitingQuestionBody = false;
                     // Process lines that look like choices
                     const choicePattern = /^[A-Z]\.\s*/i;
                     const isPrefixedChoice = choicePattern.test(line);
@@ -2171,10 +2249,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     }
                 }
 
-                // After "End Explanation" or after detecting question setup, accumulate setup text for the next question
-                // This catches lines that fall through all other patterns
-                // Stop accumulating if we've seen "endquestion" marker
-                if ((explanationEnded || (questionText && !inChoices && choices.length === 0)) && !questionEnded && line) {
+                // After "End Explanation" or after detecting question setup, accumulate setup text for the next question.
+                // This catches lines that fall through all other patterns.
+                // Also accumulate when awaitingQuestionBody is true (set right after a
+                // Q-label or part-question label) so that multi-line setup before the "?"
+                // line is preserved.
+                const canAccumulateSetup = (explanationEnded ||
+                                            awaitingQuestionBody ||
+                                            (questionText && !inChoices && choices.length === 0)) &&
+                                           !questionEnded && line;
+                if (canAccumulateSetup) {
                     // Skip LaTeX section markers and other metadata
                     if (!line.startsWith('\\section') && !line.startsWith('\\subsection')) {
                         // Build up the next question text from all lines until choices start or "endquestion" is seen
