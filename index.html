@@ -1637,6 +1637,8 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 .replace(/\*\*/g, '')
                 .replace(/\{\.underline\}/g, '')
                 .replace(/\{\.mark\}/g, '')
+                // Drop empty emphasis wrappers left behind after marker removal.
+                .replace(/<(strong|em|u|b|i|sup|sub)>\s*<\/\1>/gi, '')
                 .trim();
         }
 
@@ -1690,13 +1692,58 @@ Explanation: Sales by category represents distinct groups."></textarea>
             return correctIndicesCount <= 1;
         }
 
+        // Mammoth (Word .docx -> HTML) often wraps markers like "(correct)" or
+        // "Explanation" in <strong>...</strong>, sometimes across a newline.
+        // Normalize so marker detection works against plain text without
+        // destroying intentional emphasis inside question / choice text.
+        function preNormalizeEmphasis(text) {
+            if (!text) return text;
+
+            // Join emphasis tags whose content spans newlines:
+            // "<strong>(correct)\n</strong>" -> "<strong>(correct)</strong>".
+            for (let i = 0; i < 4; i++) {
+                const before = text;
+                text = text.replace(
+                    /<(strong|em|u|b|i|sup|sub)>([^<]*?)\s*\n\s*<\/\1>/gi,
+                    '<$1>$2</$1>'
+                );
+                if (text === before) break;
+            }
+
+            // Unwrap emphasis tags whose inner content begins with a known
+            // section marker (Correct, Answer, Explanation) or is a Q-style
+            // label, so pattern matching on plain text keeps working when
+            // authors bold the whole marker line such as
+            // "<strong>Correct: B</strong>" or "<strong>Explanation: ...</strong>".
+            // Intentional emphasis inside ordinary question / choice text is
+            // left alone.
+            text = text.replace(
+                /<(strong|em|u|b|i)>([^<]{1,2000})<\/\1>/gi,
+                (match, tag, content) => {
+                    const stripped = content.trim();
+                    if (/^\(correct(\s+answer)?\)$/i.test(stripped) ||
+                        /^(Explanation|Explain|Answer|Correct)\s*(:|$)/i.test(stripped) ||
+                        /^Q\d+[-–—][A-Za-z0-9]+\s*(\(.*\))?$/.test(stripped)) {
+                        return content;
+                    }
+                    return match;
+                }
+            );
+
+            // Remove empty emphasis tag pairs left over after marker removal
+            // (e.g. "<strong>(correct)</strong>" -> "<strong></strong>" -> "").
+            text = text.replace(/<(strong|em|u|b|i|sup|sub)>\s*<\/\1>/gi, '');
+
+            return text;
+        }
+
         function parseProblems(text) {
             const problems = [];
-            
+
             // Split "1. What ... 2. What ..." runs into separate lines, but do NOT
             // split inside expressions like "x=0. Which" where the number is
             // attached to a previous token (avoid false positives on math).
-            let normalizedText = text
+            let normalizedText = preNormalizeEmphasis(text)
                 .replace(/(^|\s)(\d+\.\s+[A-Z])/g, '$1\n$2')
                 .replace(/(Part\s+\d+\s+Question\s+\d+)/gi, '\n\n$1\n')
                 .replace(/(\*\*Original:)/gi, '\n\n$1');
@@ -2063,10 +2110,12 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
 
-                // Handle "Correct: A, C" format
-                const correctMatch = line.match(/^Correct:\s*(.+)/i);
+                // Handle "Correct: A, C" format. Also accept "Answer: A" used
+                // the same way after a multiple-choice block (some authors
+                // write "Answer: B" instead of "Correct: B").
+                const correctMatch = line.match(/^(Correct|Answer):\s*(.+)/i);
                 if (correctMatch && questionText && choices.length > 0) {
-                    const rawLetters = correctMatch[1].trim();
+                    const rawLetters = correctMatch[2].trim();
                     // Normalize lookalike characters (Greek Α, full-width Ａ, etc.)
                     // before extracting letters.
                     const normalized = normalizeCorrectLetters(rawLetters);
