@@ -1693,8 +1693,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function parseProblems(text) {
             const problems = [];
             
+            // Split "1. What ... 2. What ..." runs into separate lines, but do NOT
+            // split inside expressions like "x=0. Which" where the number is
+            // attached to a previous token (avoid false positives on math).
             let normalizedText = text
-                .replace(/(\d+\.\s+[A-Z])/g, '\n$1')
+                .replace(/(^|\s)(\d+\.\s+[A-Z])/g, '$1\n$2')
                 .replace(/(Part\s+\d+\s+Question\s+\d+)/gi, '\n\n$1\n')
                 .replace(/(\*\*Original:)/gi, '\n\n$1');
             
@@ -1831,10 +1834,18 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
 
+                // Section headers like "Q1 – Material availability constraints"
+                // (note: space-dash-space, en-dash or hyphen) are noise between
+                // problems and must not be absorbed into the previous explanation.
+                if (/^Q\d+\s+[-–—]\s+/.test(line)) {
+                    continue;
+                }
+
                 // Q-style label on its own line (e.g. "Q1-A", "Q2-B (Existing)").
                 // Finalize any in-progress problem and use the label as the next
-                // problem's title.
-                const qLabelMatch = line.match(/^(Q\d+-[A-Za-z0-9]+)\s*(\(.*\))?$/);
+                // problem's title. Hyphen or en-dash/em-dash accepted between the
+                // number and the letter, as long as there are no surrounding spaces.
+                const qLabelMatch = line.match(/^(Q\d+[-–—][A-Za-z0-9]+)\s*(\(.*\))?$/);
                 if (qLabelMatch) {
                     if (pendingAnswer) {
                         problemCount++;
@@ -2194,8 +2205,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 if (questionText && inChoices) {
                     awaitingQuestionBody = false;
-                    // Process lines that look like choices
-                    const choicePattern = /^[A-Z]\.\s*/i;
+                    // Process lines that look like choices. Accept Latin A-Z,
+                    // Greek Α-Ω and Cyrillic А-Я as prefix letters because
+                    // Word/PDF paste often substitutes lookalikes.
+                    const choicePattern = /^[A-ZΑ-ΩА-Я]\.\s*/iu;
                     const isPrefixedChoice = choicePattern.test(line);
 
                     // Stop treating lines as choices if we hit these markers
@@ -2213,7 +2226,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                                           line.toLowerCase().includes('(correct answer)') ||
                                           line.includes('**(correct');
                         const choiceText = line
-                            .replace(/^[A-Z]\.\s*/i, '')  // Strip "A.", "B.", "C." prefixes
+                            .replace(/^[A-ZΑ-ΩА-Я]\.\s*/iu, '')  // Strip "A.", "Α.", "С." etc.
                             .replace(/\*\*\(correct.*?\)\*\*/i, '')
                             .replace(/\(correct\s*answer\)/i, '')
                             .replace(/\(correct\)/i, '')
