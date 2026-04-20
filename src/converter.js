@@ -619,7 +619,10 @@ function parseProblems(text) {
     const ctx = {
         out: {
             problems: [],
-            displayNameLabel: header.displayNameLabel || 'Problem',
+            // Held empty during parsing so the `Problem N` fallback in
+            // finalizeProblem fires when no label is present. Defaulted to
+            // 'Problem' only at return time below.
+            displayNameLabel: header.displayNameLabel,
             libraryOrg: header.libraryOrg,
             libraryName: header.libraryName,
             libraryId: header.libraryId,
@@ -643,6 +646,7 @@ function parseProblems(text) {
     }
     finalizeProblem(ctx);
 
+    if (!ctx.out.displayNameLabel) ctx.out.displayNameLabel = 'Problem';
     return ctx.out;
 }
 
@@ -820,9 +824,11 @@ function handleQuestionLine(ctx, line) {
                           !line.toLowerCase().startsWith('explanation');
     if (!looksQuestion) return false;
 
-    // If a pending answer was waiting for an explanation, finalize it first.
-    if (ctx.pendingAnswer) finalizeProblem(ctx);
-    if (ctx.questionText && ctx.choices.length > 0) finalizeProblem(ctx);
+    // finalizeProblem handles both the pending-answer and
+    // question+choices cases; a single call covers both transitions.
+    if (ctx.pendingAnswer || (ctx.questionText && ctx.choices.length > 0)) {
+        finalizeProblem(ctx);
+    }
 
     // When we've been accumulating multi-line setup text before the "?" line,
     // concatenate instead of replacing so the whole question body survives.
@@ -855,33 +861,27 @@ function handleAnswerLine(ctx, line) {
     const inlineExplanation = splitMatch ? splitMatch[2].trim() : '';
     const isNumerical = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(answerValue);
 
+    // Route both paths through finalizeProblem so title/flag-reset logic lives
+    // in exactly one place. The "inline explanation" case finalizes
+    // immediately; otherwise we stash pendingAnswer and wait for an
+    // Explanation: line on a subsequent iteration.
+    ctx.pendingAnswer = {
+        questionText: ctx.questionText,
+        answerValue,
+        answerType: isNumerical ? 'numerical' : 'text',
+    };
+    ctx.questionText = '';
     if (inlineExplanation || ctx.explanation) {
-        ctx.problemCount++;
-        ctx.out.problems.push({
-            title: ctx.currentLabel || ctx.out.displayNameLabel || `Problem ${ctx.problemCount}`,
-            question: cleanText(ctx.questionText),
-            answer: answerValue,
-            answerType: isNumerical ? 'numerical' : 'text',
-            choices: [],
-            correctIndices: [],
-            isMultipleChoice: false,
-            explanation: inlineExplanation || ctx.explanation || 'Add your explanation here',
-        });
-        ctx.questionText = '';
-        ctx.explanation = '';
+        ctx.explanation = inlineExplanation || ctx.explanation;
+        finalizeProblem(ctx);
     } else {
-        ctx.pendingAnswer = {
-            questionText: ctx.questionText,
-            answerValue,
-            answerType: isNumerical ? 'numerical' : 'text',
-        };
-        ctx.questionText = '';
+        // Answer captured; we're no longer in choice-accumulation mode and
+        // any prior end-of-explanation / end-of-question markers no longer
+        // apply to the pending text-answer problem.
+        ctx.inChoices = false;
+        ctx.explanationEnded = false;
+        ctx.questionEnded = false;
     }
-    ctx.choices = [];
-    ctx.correctIndices = [];
-    ctx.explanationEnded = false;
-    ctx.questionEnded = false;
-    ctx.inChoices = false;
     return true;
 }
 

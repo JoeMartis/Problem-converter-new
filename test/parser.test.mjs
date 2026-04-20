@@ -9,6 +9,22 @@ const t = new TestRunner('parser');
 
 // --- core parsing --------------------------------------------------------
 
+t.case('unlabeled problems get "Problem 1", "Problem 2", ... titles', () => {
+    const r = api.parseProblems(
+        'Q1?\nA. a\nB. b\nCorrect: A\nExplanation: e.\n' +
+        'Q2?\nA. a\nB. b\nCorrect: A\nExplanation: f.'
+    );
+    assertEqual(r.problems.map(p => p.title), ['Problem 1', 'Problem 2']);
+});
+
+t.case('labeled problems carry the label as title', () => {
+    const r = api.parseProblems(
+        'Q1-A\nFirst?\nA. a\nCorrect: A\nExplanation: e.\n' +
+        'Q1-B\nSecond?\nA. a\nCorrect: A\nExplanation: f.'
+    );
+    assertEqual(r.problems.map(p => p.title), ['Q1-A', 'Q1-B']);
+});
+
 t.case('parses a simple multiple-choice question', () => {
     const r = api.parseProblems(
         'What is 2+2?\n1\n3\n4 (correct)\n5\nExplanation: math.'
