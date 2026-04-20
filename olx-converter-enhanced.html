@@ -1116,7 +1116,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
                 
-                let answerMatch = line.match(/^Answer:\s*(.+?)\s+Explanation:\s+(.+)$/);
+                let answerMatch = line.match(/^Answer:\s*(.+?)\s+Explanation:\s+(.+)$/i);
                 if (!answerMatch) {
                     answerMatch = line.match(/^Answer:\s*(.+)$/i);
                 }

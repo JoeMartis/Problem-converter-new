@@ -1293,8 +1293,22 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             continue;
                         }
                         if (name === 'href') {
-                            const value = attr.value.trim().toLowerCase();
-                            if (value.startsWith('javascript:') || value.startsWith('data:') || value.startsWith('vbscript:')) {
+                            // Whitelist safe schemes. Accept scheme-relative
+                            // and relative URLs too. Everything else (js:,
+                            // data:, blob:, filesystem:, vbscript:, ...) is
+                            // dropped.
+                            const value = attr.value.trim();
+                            const schemeMatch = value.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
+                            const scheme = schemeMatch ? schemeMatch[1].toLowerCase() : null;
+                            const isSafe = !scheme ||
+                                scheme === 'http' ||
+                                scheme === 'https' ||
+                                scheme === 'mailto' ||
+                                scheme === 'tel' ||
+                                value.startsWith('//') ||
+                                value.startsWith('/') ||
+                                value.startsWith('#');
+                            if (!isSafe) {
                                 node.removeAttribute(attr.name);
                             }
                         }
@@ -1710,13 +1724,20 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 if (text === before) break;
             }
 
+            // Drop empty emphasis tag pairs BEFORE the unwrap step so an
+            // adjacent "<strong></strong>" cannot let the unwrap regex
+            // span multiple tags and swallow a legitimate marker.
+            text = text.replace(/<(strong|em|u|b|i|sup|sub)>\s*<\/\1>/gi, '');
+
             // Unwrap emphasis tags whose inner content begins with a known
             // section marker (Correct, Answer, Explanation) or is a Q-style
             // label, so pattern matching on plain text keeps working when
             // authors bold the whole marker line such as
             // "<strong>Correct: B</strong>" or "<strong>Explanation: ...</strong>".
             // Intentional emphasis inside ordinary question / choice text is
-            // left alone.
+            // left alone. Using [^<] keeps the match anchored to a single
+            // tag - worth the small loss of "unwrap when <br/> is inside
+            // the marker" in exchange for deterministic behavior.
             text = text.replace(
                 /<(strong|em|u|b|i)>([^<]{1,2000})<\/\1>/gi,
                 (match, tag, content) => {
@@ -1730,8 +1751,9 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 }
             );
 
-            // Remove empty emphasis tag pairs left over after marker removal
-            // (e.g. "<strong>(correct)</strong>" -> "<strong></strong>" -> "").
+            // Second pass: remove any empty emphasis tag pairs that unwrap
+            // left behind (e.g. "<strong>(correct)</strong>" after the marker
+            // itself was stripped elsewhere).
             text = text.replace(/<(strong|em|u|b|i|sup|sub)>\s*<\/\1>/gi, '');
 
             return text;
@@ -2100,7 +2122,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 // Split on "Explanation:" only when it appears as a section marker
                 // (capital E, preceded by whitespace, followed by space + content).
                 // This avoids false splits when "explanation:" appears inside the answer text.
-                let answerMatch = line.match(/^Answer:\s*(.+?)\s+Explanation:\s+(.+)$/);
+                let answerMatch = line.match(/^Answer:\s*(.+?)\s+Explanation:\s+(.+)$/i);
                 if (!answerMatch) {
                     answerMatch = line.match(/^Answer:\s*(.+)$/i);
                 }
