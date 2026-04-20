@@ -307,6 +307,27 @@ t.case('makeSafeFilename neutralizes path traversal', () => {
     assert(!out.includes('..'));
 });
 
+// --- XML attribute escaping (post-refactor bug scan) -------------------
+
+t.case('escapeXmlWithFormatting escapes < > & in anchor href', () => {
+    const out = api.escapeXmlWithFormatting(
+        '<a href="https://example.com/?a=1&b=<script>">link</a>'
+    );
+    assert(!out.match(/href="[^"]*<script>/),
+        `unescaped < in href: ${out}`);
+    assert(out.includes('&amp;') || out.includes('&lt;'),
+        `expected XML-escaped attribute: ${out}`);
+});
+
+t.case('escapeXmlWithFormatting escapes pre>code class / data-language', () => {
+    const out = api.escapeXmlWithFormatting(
+        '<pre><code class="lang-<x>" data-language="a&b">code body</code></pre>'
+    );
+    assert(!out.match(/class="[^"]*<x>/), `unescaped class: ${out}`);
+    assert(!out.match(/data-language="[^"]*&[^a][^m][^p]/),
+        `unescaped & in data-language: ${out}`);
+});
+
 // --- export -------------------------------------------------------------
 
 export default t;
