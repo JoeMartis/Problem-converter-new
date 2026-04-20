@@ -1,9 +1,27 @@
 <!DOCTYPE html>
+<!--
+    DEPRECATED - kept for historical reference only.
+
+    This file is a baseline / legacy version of the converter. The actively
+    maintained entry point is index.html (v5.x) with src/converter.js. This
+    file does NOT have the following fixes from v5:
+      - contenteditable XSS sanitizer
+      - Mammoth HTML injection guard (DOMParser + sanitizer)
+      - Q-label detection (Q1-A etc.)
+      - Multi-line question body accumulation
+      - preNormalizeEmphasis (Word <strong>...</strong> marker handling)
+      - normalizeLatexChoices (LaTeX-labelled MC blocks)
+      - Greek/Cyrillic letter folding for Correct: markers
+      - escapeXmlWithFormatting attribute escaping
+      - Placeholder collision guard in escape helpers
+
+    Use index.html. This file will be removed in a future release.
+-->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Open edX OLX Problem Converter</title>
+    <title>Open edX OLX Problem Converter (DEPRECATED baseline - use index.html)</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Crimson+Pro:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>

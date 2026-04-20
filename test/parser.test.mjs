@@ -307,6 +307,46 @@ t.case('makeSafeFilename neutralizes path traversal', () => {
     assert(!out.includes('..'));
 });
 
+// --- handleEdit commits state immediately even with interleaved fields -
+
+t.case('handleEdit applies state per-keystroke (no cross-field loss)', () => {
+    // The v5 debounce wrapped the entire state-mutation in a single global
+    // timer. Rapidly switching fields reset that timer and lost the first
+    // field's edit. Regression guard: each handleEdit call must update its
+    // target field synchronously.
+
+    // The harness shares the one module scope, so this parse also sets the
+    // converter's internal `currentProblems` via convertToOLX's caller chain.
+    // Since the tests don't call convertToOLX, we push directly:
+    const seeded = api.parseProblems(
+        'Q?\nA. a\nB. b\nCorrect: A\nExplanation: e1.\n' +
+        'Q?\nA. c\nB. d\nCorrect: B\nExplanation: e2.'
+    ).problems;
+    const cp = api._getCurrentProblems();
+    cp.length = 0;
+    cp.push(...seeded);
+
+    function fakeEditEvent(problemIndex, field, html, choiceIndex) {
+        const el = document.createElement('div');
+        el.setAttribute('data-problem', String(problemIndex));
+        el.setAttribute('data-field', field);
+        if (choiceIndex !== undefined) {
+            el.setAttribute('data-choice', String(choiceIndex));
+        }
+        el.innerHTML = html;
+        document.body.appendChild(el);
+        return { target: el };
+    }
+
+    api.handleEdit(fakeEditEvent(0, 'question', 'new q0'));
+    api.handleEdit(fakeEditEvent(1, 'choice', 'new c0 for p1', 0));
+    api.handleEdit(fakeEditEvent(0, 'explanation', 'new expl0'));
+
+    assertEqual(cp[0].question, 'new q0');
+    assertEqual(cp[1].choices[0], 'new c0 for p1');
+    assertEqual(cp[0].explanation, 'new expl0');
+});
+
 // --- XML attribute escaping (post-refactor bug scan) -------------------
 
 t.case('escapeXmlWithFormatting escapes < > & in anchor href', () => {

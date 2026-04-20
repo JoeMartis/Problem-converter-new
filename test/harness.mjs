@@ -40,11 +40,14 @@ export function loadConverterApi() {
         'makeSafeFilename',
         'isProblemMultipleChoice',
         'getMaxAttempts',
-        'generateUUID'
+        'generateUUID',
+        'handleEdit'
     ];
+    // Also expose module-level state getters for direct inspection in tests.
     const wrapper =
         '(function(){\n' + parserScript + '\n; return { ' +
         expose.map(n => `${n}: typeof ${n} === "function" || typeof ${n} === "object" ? ${n} : undefined`).join(', ') +
+        ', _getCurrentProblems: () => currentProblems' +
         ' }; })()';
     // eslint-disable-next-line no-eval
     return eval(wrapper);
