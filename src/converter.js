@@ -1221,7 +1221,7 @@ function generateOLX(problems) {
     return olxParts.join('\n\n');
 }
 
-function updateStatistics(problems) {
+function updateStatistics(problems, warnings) {
     const stats = {
         total: problems.length,
         multipleChoice: 0,
@@ -1230,9 +1230,11 @@ function updateStatistics(problems) {
         text: 0,
         totalChoices: 0,
         choiceProblems: 0,
-        warnings: 0
+        // Count only severity='warn' (not 'info') so the stat card reflects
+        // issues that likely matter, not purely informational notes.
+        warnings: (warnings || currentWarnings || []).filter(w => w.severity !== 'info').length,
     };
-    
+
     problems.forEach(p => {
         if (p.answerType === 'numerical') {
             stats.numerical++;
@@ -1250,13 +1252,6 @@ function updateStatistics(problems) {
                 stats.totalChoices += p.choices.length;
                 stats.choiceProblems++;
             }
-        }
-
-        if (p.choices && p.choices.length > 0 && p.correctIndices && p.correctIndices.length === 0) {
-            stats.warnings++;
-        }
-        if (p.choices && p.choices.length < 2 && !p.answerType) {
-            stats.warnings++;
         }
     });
     
@@ -1308,9 +1303,10 @@ function renderWarningsPanel(warnings, problems) {
     count.textContent = `${warnings.length} warning${warnings.length === 1 ? '' : 's'}`;
 
     list.innerHTML = warnings.map(w => {
-        const problem = w.problemIndex >= 0 && problems ? problems[w.problemIndex] : null;
+        const inRange = w.problemIndex >= 0 && problems && w.problemIndex < problems.length;
+        const problem = inRange ? problems[w.problemIndex] : null;
         const label = problem
-            ? `[${escapeHtml(problem.title)}]`
+            ? `[${problem.title}]`
             : (w.problemIndex >= 0 ? `[Problem ${w.problemIndex + 1}]` : '');
         const sevClass = w.severity === 'info' ? 'severity-info' : 'severity-warn';
         return `<li class="${sevClass}"><span class="warn-problem">${escapeHtml(label)}</span>${escapeHtml(w.message)}</li>`;
@@ -1449,9 +1445,12 @@ function renderProblemHTML(problem, index) {
     }
 
     const problemWarnings = warningsForProblem(index);
+    // Use " | " as a delimiter rather than "\n" - the latter is whitespace-
+    // collapsed or rendered inconsistently by tooltip implementations, and
+    // "\n" embedded in an HTML attribute source is awkward to reason about.
     const warnBadge = problemWarnings.length > 0
-        ? `<span class="preview-warning-badge" title="${escapeHtml(problemWarnings.map(w => w.message).join('\n'))}">⚠ ${problemWarnings.length}</span>`
-        : '';
+        ? `<span class="preview-warning-badge" data-index="${index}" title="${escapeHtml(problemWarnings.map(w => w.message).join(' | '))}">⚠ ${problemWarnings.length}</span>`
+        : `<span class="preview-warning-badge" data-index="${index}" style="display:none;"></span>`;
 
     return `
         <div class="preview-problem" data-index="${index}">
@@ -1964,6 +1963,46 @@ function updateOLXOutput() {
     }
     const olx = generateOLX(currentProblems);
     output.textContent = olx;
+    // Refresh warnings + stats now that currentProblems may have changed.
+    revalidateWarnings();
+    updateStatistics(currentProblems);
+}
+
+// Re-run validation against the in-memory problems and refresh the UI that
+// depends on it (panel + per-problem badges). Parser warnings captured at
+// initial parse time are preserved since they describe the raw source text
+// and don't become less true after an edit.
+const PARSER_WARNING_CODES = new Set(['correct_out_of_range', 'correct_unparseable']);
+
+function revalidateWarnings() {
+    const parserWarnings = currentWarnings.filter(w => PARSER_WARNING_CODES.has(w.code));
+    const validationWarnings = [];
+    validateProblems(currentProblems, validationWarnings);
+    currentWarnings = [...parserWarnings, ...validationWarnings];
+    renderWarningsPanel(currentWarnings, currentProblems);
+    refreshProblemWarningBadges();
+}
+
+// Update each per-problem badge in place so the user's in-progress edit
+// does not lose focus. Badges are always rendered (possibly hidden) so we
+// can find them by data-index.
+function refreshProblemWarningBadges() {
+    const container = document.getElementById('previewContainer');
+    if (!container) return;
+    container.querySelectorAll('.preview-warning-badge').forEach(el => {
+        const idx = parseInt(el.dataset.index, 10);
+        if (isNaN(idx)) return;
+        const ws = warningsForProblem(idx);
+        if (ws.length === 0) {
+            el.style.display = 'none';
+            el.textContent = '';
+            el.removeAttribute('title');
+        } else {
+            el.style.display = '';
+            el.textContent = `⚠ ${ws.length}`;
+            el.setAttribute('title', ws.map(w => w.message).join(' | '));
+        }
+    });
 }
 
 function updateNavInfo() {
@@ -2055,8 +2094,8 @@ function convertToOLX() {
         const olx = generateOLX(problems);
         output.textContent = olx;
 
-        updateStatistics(problems);
         renderWarningsPanel(currentWarnings, problems);
+        updateStatistics(problems, currentWarnings);
 
         if (previewEnabled) {
             renderPreview(problems);
