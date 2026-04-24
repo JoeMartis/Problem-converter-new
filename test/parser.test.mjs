@@ -454,6 +454,75 @@ t.case('escapeXmlWithFormatting escapes pre>code class / data-language', () => {
         `unescaped & in data-language: ${out}`);
 });
 
+// --- tar archive builder ------------------------------------------------
+
+t.case('tarBuild produces valid POSIX tar structure', () => {
+    const bytes = api.tarBuild([
+        { name: 'my-lib/', isDir: true },
+        { name: 'my-lib/library.xml', data: '<library/>' },
+        { name: 'my-lib/problem/p1.xml', data: '<problem/>' },
+    ]);
+    // Must be a multiple of 512 (tar block size).
+    assertEqual(bytes.length % 512, 0);
+    // Must end with two zero blocks (1024 bytes).
+    let allZero = true;
+    for (let i = bytes.length - 1024; i < bytes.length; i++) {
+        if (bytes[i] !== 0) { allZero = false; break; }
+    }
+    assert(allZero, 'tar must end with two zero blocks');
+
+    // First header contains the first entry's name starting at offset 0.
+    const firstName = new TextDecoder().decode(bytes.slice(0, 7));
+    assertEqual(firstName, 'my-lib/');
+
+    // First header's typeflag (offset 156) is '5' for directory.
+    assertEqual(String.fromCharCode(bytes[156]), '5');
+
+    // ustar magic is at offset 257.
+    const magic = new TextDecoder().decode(bytes.slice(257, 263));
+    assertEqual(magic, 'ustar\0');
+});
+
+t.case('tarBuild header checksum validates', () => {
+    const bytes = api.tarBuild([
+        { name: 'x.txt', data: 'hello' },
+    ]);
+    // Parse the stored checksum.
+    const stored = parseInt(new TextDecoder().decode(bytes.slice(148, 154)).trim(), 8);
+    // Recompute: sum of all 512 bytes with checksum field treated as spaces.
+    const header = new Uint8Array(bytes.slice(0, 512));
+    for (let i = 148; i < 156; i++) header[i] = 0x20;
+    let sum = 0;
+    for (let i = 0; i < 512; i++) sum += header[i];
+    assertEqual(stored, sum);
+});
+
+t.case('tarBuild rejects names longer than 100 bytes', () => {
+    let threw = false;
+    try {
+        api.tarBuild([{ name: 'x'.repeat(101), data: '' }]);
+    } catch (e) {
+        threw = true;
+        assert(/too long/.test(e.message), `unexpected error: ${e.message}`);
+    }
+    assert(threw, 'expected tarBuild to throw on overlong name');
+});
+
+t.case('tarBuild embeds file content padded to 512-byte boundary', () => {
+    const bytes = api.tarBuild([
+        { name: 'x.txt', data: 'hi' },  // 2 bytes content
+    ]);
+    // Layout: header (512) + content (2 bytes) + padding (510 zero bytes)
+    //         + two end blocks (1024 bytes) = 2048 total
+    assertEqual(bytes.length, 2048);
+    // Content at offset 512
+    assertEqual(String.fromCharCode(bytes[512]), 'h');
+    assertEqual(String.fromCharCode(bytes[513]), 'i');
+    // Padding zeroes
+    assertEqual(bytes[514], 0);
+    assertEqual(bytes[1023], 0);
+});
+
 // --- export -------------------------------------------------------------
 
 export default t;
