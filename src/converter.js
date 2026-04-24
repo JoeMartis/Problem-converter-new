@@ -2269,6 +2269,94 @@ function generateSingleProblemXML(problem, index, urlName) {
 
 let libraryDownloadInProgress = false;
 
+// --- minimal tar + gzip builder ----------------------------------------
+// Open edX Studio's library import expects a gzipped POSIX tar archive.
+// We build one without external dependencies so that the app stays a
+// single-file browser tool. The archive layout for a library is:
+//
+//   <library-id>/
+//     library.xml
+//     problem/*.xml
+//     policies/assets.json
+//
+// Directory entries are emitted as separate 0-byte tar records with
+// typeflag '5' so extractors that don't auto-create parent directories
+// still produce the right tree.
+
+function tarBuild(entries) {
+    // entries: [{ name, data?, isDir? }] - data is string or Uint8Array
+    const chunks = [];
+    for (const entry of entries) {
+        const isDir = !!entry.isDir;
+        const data = isDir
+            ? new Uint8Array(0)
+            : (typeof entry.data === 'string'
+                ? new TextEncoder().encode(entry.data)
+                : entry.data);
+        chunks.push(tarHeader(entry.name, data.length, isDir));
+        if (!isDir) {
+            chunks.push(data);
+            const pad = (512 - (data.length % 512)) % 512;
+            if (pad) chunks.push(new Uint8Array(pad));
+        }
+    }
+    // Two empty 512-byte blocks terminate the archive.
+    chunks.push(new Uint8Array(1024));
+
+    let total = 0;
+    for (const c of chunks) total += c.length;
+    const out = new Uint8Array(total);
+    let offset = 0;
+    for (const c of chunks) { out.set(c, offset); offset += c.length; }
+    return out;
+}
+
+function tarHeader(name, size, isDir) {
+    const h = new Uint8Array(512);
+    const enc = new TextEncoder();
+
+    const nameBytes = enc.encode(name);
+    if (nameBytes.length > 100) {
+        throw new Error(`tar entry name too long (>100 bytes): ${name}`);
+    }
+    h.set(nameBytes, 0);
+
+    tarSetOctal(h, 100, 8, isDir ? 0o755 : 0o644);  // mode
+    tarSetOctal(h, 108, 8, 0);                       // uid
+    tarSetOctal(h, 116, 8, 0);                       // gid
+    tarSetOctal(h, 124, 12, size);                   // size
+    tarSetOctal(h, 136, 12, Math.floor(Date.now() / 1000));  // mtime
+    h[156] = isDir ? 0x35 : 0x30;                    // typeflag '5' or '0'
+    h.set(enc.encode('ustar\0'), 257);               // magic
+    h.set(enc.encode('00'), 263);                    // version
+
+    // Checksum: sum of all 512 bytes with checksum field treated as spaces,
+    // then written as 6 octal digits + NUL + space.
+    for (let i = 148; i < 156; i++) h[i] = 0x20;
+    let sum = 0;
+    for (let i = 0; i < 512; i++) sum += h[i];
+    h.set(enc.encode(sum.toString(8).padStart(6, '0')), 148);
+    h[154] = 0;
+    h[155] = 0x20;
+    return h;
+}
+
+function tarSetOctal(buf, offset, length, value) {
+    // Write value as (length-1) octal digits zero-padded, followed by NUL.
+    const str = value.toString(8).padStart(length - 1, '0');
+    buf.set(new TextEncoder().encode(str), offset);
+    buf[offset + length - 1] = 0;
+}
+
+async function gzipBytes(bytes) {
+    if (typeof CompressionStream === 'undefined') {
+        throw new Error('Browser lacks CompressionStream; cannot produce .tar.gz');
+    }
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+    const buf = await new Response(stream).arrayBuffer();
+    return new Uint8Array(buf);
+}
+
 async function downloadLibrary() {
     if (libraryDownloadInProgress) return;
     if (currentProblems.length === 0) {
@@ -2303,34 +2391,34 @@ async function downloadLibrary() {
         }
         libraryXML += `</library>`;
 
-        const zip = new JSZip();
         const safeLibraryId = makeSafeFilename(meta.libraryId);
-        const library = zip.folder(safeLibraryId);
-        const problemFolder = library.folder('problem');
-        const policiesFolder = library.folder('policies');
-        
+
+        // Build the POSIX tar layout Studio expects, then gzip it.
+        const root = `${safeLibraryId}/`;
+        const tarEntries = [
+            { name: root, isDir: true },
+            { name: `${root}problem/`, isDir: true },
+            { name: `${root}policies/`, isDir: true },
+            { name: `${root}library.xml`, data: libraryXML },
+            { name: `${root}policies/assets.json`, data: '{}' },
+        ];
         for (const pf of problemXMLs) {
-            problemFolder.file(pf.filename, pf.content);
+            tarEntries.push({ name: `${root}problem/${pf.filename}`, data: pf.content });
         }
-        
-        library.file('library.xml', libraryXML);
-        policiesFolder.file('assets.json', '{}');
-        
-        const content = await zip.generateAsync({ 
-            type: 'blob',
-            compression: "DEFLATE",
-            compressionOptions: { level: 9 }
-        });
-        
-        url = URL.createObjectURL(content);
+
+        const tarBytes = tarBuild(tarEntries);
+        const gzBytes = await gzipBytes(tarBytes);
+        const blob = new Blob([gzBytes], { type: 'application/gzip' });
+
+        url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${safeLibraryId}.zip`;
+        a.download = `${safeLibraryId}.tar.gz`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
 
-        showStatus(`Downloaded ${safeLibraryId}.zip with ${currentProblems.length} problems (with edits)`, 'success');
+        showStatus(`Downloaded ${safeLibraryId}.tar.gz with ${currentProblems.length} problems - ready to import into edX Studio`, 'success');
     } catch (error) {
         showStatus(`Error creating library: ${error.message}`, 'error');
         console.error(error);

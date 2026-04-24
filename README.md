@@ -29,7 +29,7 @@ _(stable previous release: [v4.3](https://github.com/JoeMartis/problem-converter
 - ✏️ **In-Place Editing** - Edit questions, choices, and explanations directly
 - 📊 **Statistics Dashboard** - Track problem counts and warnings
 - 📦 **Batch Processing** - Convert multiple problems at once
-- 💾 **Library Export** - Download as organized ZIP with Open edX Library v1 structure
+- 💾 **Library Export** - Download as `.tar.gz` with Open edX Library v1 structure (directly importable into edX Studio)
 - 📋 **Copy to Clipboard** - Quick OLX export
 - 🎨 **Modern UI** - Clean, responsive design
 - 🎯 **Smart Attempts Policy** - Automatic retry configuration based on problem type
@@ -101,7 +101,11 @@ UI clears the badge live.
   through `escapeXml`.
 - **Cross-field edit debounce fix** — rapid edits across different
   fields no longer drop prior keystrokes.
-- **Download debounce + URL cleanup** for both OLX and library ZIP.
+- **Download debounce + URL cleanup** for both OLX and library archive.
+- **Library archive is `.tar.gz`** (POSIX tar + gzip) so edX Studio's
+  "Import Library" accepts the file directly. Tar is generated in
+  ~100 lines of JS and gzipped via the browser's native
+  `CompressionStream`; the JSZip CDN dependency was dropped.
 - **Crypto UUIDs** — prefer `crypto.randomUUID` / `getRandomValues` over
   `Math.random`.
 - **Unicode filenames** — `makeSafeFilename` preserves non-ASCII letters
@@ -336,7 +340,7 @@ $$ \int_0^1 x^2 dx = \frac{1}{3} $$
 3. **Export**
    - **Copy OLX** - Copy XML to clipboard for manual use
    - **Download** - Get plain OLX file
-   - **Download Library** - Get complete Open edX Library v1 structure as ZIP
+   - **Download Library** - Get the complete Open edX Library v1 structure as a `.tar.gz` archive (import directly into edX Studio via **Tools → Import**)
 
 ## 📊 Statistics & Validation
 
@@ -385,10 +389,11 @@ problem to fix an issue and the badge refreshes in place.
 - **Pure HTML/CSS/JavaScript** — `index.html` loads `src/converter.js`
   as a plain script.
 - **Runtime dependencies** (loaded from CDN by the browser):
-  - JSZip v3.10.1 — ZIP file generation
   - Mammoth.js v1.6.0 — Word document parsing
   - MathJax v3 — LaTeX equation rendering
   - Google Fonts — Typography
+  - *No archive library*: tar is written inline; gzip uses the
+    browser's native `CompressionStream` API.
 - **Dev dependencies** (for `npm test` only; not shipped to users):
   - `jsdom` — DOM shim for tests
   - `mammoth` — same library as the browser uses, for `.docx` corpus
@@ -576,7 +581,7 @@ Manual (browser):
 - [ ] Preview editing — formatting toolbar, warnings badge refresh
 - [ ] File upload — `.txt` and `.docx`
 - [ ] MathJax re-render after edits
-- [ ] Library export ZIP structure imports into Open edX
+- [ ] Library export `.tar.gz` imports into edX Studio
 - [ ] OLX validation on Open edX platform
 
 ## 📄 License
@@ -586,7 +591,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Open edX community for OLX specifications
-- JSZip and Mammoth.js teams for excellent libraries
+- Mammoth.js team for the Word document library
 - All contributors and users
 
 ## 📞 Support
@@ -600,7 +605,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### Version 5.x Series (Current)
 **v5.0.0-alpha** — structural refactor + surfaced warnings
 - Core logic extracted from `index.html` to `src/converter.js`.
-- Node-based test suite under `test/` (44 regressions + docx corpus).
+- Node-based test suite under `test/` (48 regressions + docx corpus).
 - `parseProblems` rewritten as a 16-handler state machine with a
   single `finalizeProblem` helper.
 - Warnings panel + per-problem badges surface parser/validator issues
@@ -613,6 +618,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   placeholder-collision guard, href scheme whitelist, attribute
   escaping, clipboard fallback, download debounce, crypto UUIDs,
   Unicode-preserving filename, library metadata snapshot.
+- **Library download is now `.tar.gz`** (POSIX tar + gzip via native
+  `CompressionStream`) so edX Studio's Import Library accepts the
+  archive directly. JSZip CDN dependency dropped.
 
 ### Version 4.x Series
 **v4.3** - GitHub Pages cache refresh

@@ -41,7 +41,9 @@ export function loadConverterApi() {
         'isProblemMultipleChoice',
         'getMaxAttempts',
         'generateUUID',
-        'handleEdit'
+        'handleEdit',
+        'tarBuild',
+        'tarHeader'
     ];
     // Also expose module-level state getters for direct inspection in tests.
     const wrapper =
