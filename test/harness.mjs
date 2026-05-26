@@ -1,9 +1,6 @@
 // Shared harness: loads the parseProblems/escape/etc. code out of index.html
 // into a Node-friendly environment, and provides a Mammoth -> text pipeline
 // that mirrors the browser's handleFileUpload behavior.
-//
-// Keeping this as a harness rather than importing directly from a module
-// until Phase 2 of the refactor extracts the JS into its own file.
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -14,10 +11,23 @@ import mammoth from 'mammoth';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..');
 
-// Load src/converter.js and evaluate it against a minimal jsdom document so
-// we can call parseProblems / generateOLX / etc.
+// Extract the inline <script> block from index.html that contains the
+// converter code (the one with `function parseProblems`). Other script tags
+// in index.html (MathJax config, external CDN loads) are ignored.
+function extractConverterScript(html) {
+    const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi;
+    let m;
+    while ((m = re.exec(html)) !== null) {
+        if (m[1].includes('function parseProblems')) return m[1];
+    }
+    throw new Error('Could not find parseProblems script block in index.html');
+}
+
+// Load the inline converter script from index.html and evaluate it against a
+// minimal jsdom document so we can call parseProblems / generateOLX / etc.
 export function loadConverterApi() {
-    const parserScript = readFileSync(resolve(repoRoot, 'src/converter.js'), 'utf8');
+    const indexHtml = readFileSync(resolve(repoRoot, 'index.html'), 'utf8');
+    const parserScript = extractConverterScript(indexHtml);
 
     const dom = new JSDOM('<!doctype html><html><body></body></html>');
     // Install the globals the parser relies on. Anything touching the real
