@@ -2059,11 +2059,13 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     return header;
                 }
                 if (line.match(/^Part\s+\d+$/i)) continue;
-                if (line.match(/^Q\d+-[A-Za-z0-9]+(\s*\(.*\))?$/)) { header.startIndex = i; return header; }
-                if (line.endsWith('?') || line.match(/^\d+\.\s+/) || line.match(/^Original:/i)) {
-                    header.startIndex = i;
-                    return header;
-                }
+
+                // Any other non-empty line is content (could be a question, a
+                // Q-label, a numbered question, or setup text like "Assume the
+                // analysts' results are as follows:"). Stop scanning and hand
+                // the line off to the main parser so it isn't silently dropped.
+                header.startIndex = i;
+                return header;
             }
             return header;
         }
@@ -2438,10 +2440,17 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function handleSetupFallthrough(ctx, line) {
             // Absorbs plain lines into questionText when we're expecting the question
             // body - right after a label (awaitingQuestionBody), right after "End
-            // Explanation" (explanationEnded), or mid-accumulation.
+            // Explanation" (explanationEnded), mid-accumulation, or at the very
+            // start of the document before any problem markers (so setup text
+            // like "Assume the analysts' results are as follows:" preceding the
+            // first question isn't silently dropped).
+            const blankStart = !ctx.questionText && !ctx.pendingAnswer &&
+                               ctx.choices.length === 0 && !ctx.inChoices &&
+                               ctx.problemCount === 0;
             const canAccumulate = (ctx.explanationEnded ||
                                    ctx.awaitingQuestionBody ||
-                                   (ctx.questionText && !ctx.inChoices && ctx.choices.length === 0)) &&
+                                   (ctx.questionText && !ctx.inChoices && ctx.choices.length === 0) ||
+                                   blankStart) &&
                                   !ctx.questionEnded && line &&
                                   !line.startsWith('\\section') && !line.startsWith('\\subsection');
             if (!canAccumulate) return false;
