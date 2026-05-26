@@ -1851,7 +1851,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 (match, tag, content) => {
                     const stripped = content.trim();
                     if (/^\(correct(\s+answer)?\)$/i.test(stripped) ||
-                        /^(Explanation|Explain|Answer|Correct)\s*(:|$)/i.test(stripped) ||
+                        /^(Correct\s+Answer|Explanation|Explain|Answer|Correct)\s*(:|$)/i.test(stripped) ||
                         /^Q\d+[-–—][A-Za-z0-9]+\s*(\(.*\))?$/.test(stripped)) {
                         return content;
                     }
@@ -2268,32 +2268,77 @@ Explanation: Sales by category represents distinct groups."></textarea>
             if (!m) return false;
             if (!ctx.questionText || ctx.choices.length === 0) return false;
 
-            const rawLetters = m[2].trim();
-            const normalized = normalizeCorrectLetters(rawLetters);
-            const letterMatches = normalized.match(/[A-Z]/g);
-            if (letterMatches && letterMatches.length > 0) {
-                const parsed = letterMatches.map(letter => letter.charCodeAt(0) - 'A'.charCodeAt(0));
-                const outOfRange = parsed.filter(idx => idx < 0 || idx >= ctx.choices.length);
+            // Strip HTML tags and surrounding quotes before extracting letters.
+            // Some authors write "Correct Answer: 'Group B'" where the answer is the
+            // matching choice text rather than a bare letter. Trailing explanation
+            // text on the same line (e.g. "Correct Answer: Group B  Group A = ...")
+            // would otherwise leak in via raw letter matching, so we restrict
+            // extraction to the answer specifier itself.
+            let payload = m[2].replace(/<[^>]+>/g, '').trim();
+            // Drop a single leading & trailing pair of quote-like chars.
+            payload = payload.replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
+
+            // Try several answer-specifier patterns, most specific first:
+            //   1. "Group B" / "Option C" / "Choice A" / "Answer B" (with optional period)
+            //   2. Bare letter list: "A", "B, D", "A and C"
+            //   3. Fallback: collect all uppercase letters from the full payload
+            const correctIndicesSet = new Set();
+            let recognized = false;
+
+            const namedMatch = payload.match(/^(?:Group|Option|Choice|Answer|Item|Alternative)\s+([A-Z])\b/i);
+            if (namedMatch) {
+                const idx = namedMatch[1].toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
+                if (idx >= 0 && idx < ctx.choices.length) correctIndicesSet.add(idx);
+                recognized = true;
+            } else {
+                // Bare letter or letter list, possibly with separators ", " / " and " / "/".
+                // Stop at the first non-letter, non-separator token so trailing prose is ignored.
+                const bareMatch = payload.match(/^([A-Z](?:\s*(?:,|and|&|\/|or)\s*[A-Z])*)\b/i);
+                if (bareMatch) {
+                    const normalized = normalizeCorrectLetters(bareMatch[1]);
+                    const letters = normalized.match(/[A-Z]/g) || [];
+                    let allInRange = letters.length > 0;
+                    letters.forEach(letter => {
+                        const idx = letter.charCodeAt(0) - 'A'.charCodeAt(0);
+                        if (idx >= 0 && idx < ctx.choices.length) {
+                            correctIndicesSet.add(idx);
+                        } else {
+                            allInRange = false;
+                        }
+                    });
+                    recognized = allInRange;
+                }
+            }
+
+            if (!recognized) {
+                // Fallback: scan the full payload for A-Z letters.
+                const normalized = normalizeCorrectLetters(payload);
+                const letters = normalized.match(/[A-Z]/g) || [];
+                const parsed = letters.map(l => l.charCodeAt(0) - 'A'.charCodeAt(0));
+                const inRange = parsed.filter(i => i >= 0 && i < ctx.choices.length);
+                const outOfRange = parsed.filter(i => i < 0 || i >= ctx.choices.length);
                 if (outOfRange.length > 0) {
-                    const letters = outOfRange.map(idx => String.fromCharCode(65 + idx)).join(', ');
+                    const outLetters = outOfRange.map(i => String.fromCharCode(65 + i)).join(', ');
                     ctx.out.warnings.push({
-                        problemIndex: ctx.problemCount,  // this problem will be pushed next
+                        problemIndex: ctx.problemCount,
                         code: 'correct_out_of_range',
                         severity: 'warn',
                         source: 'parser',
-                        message: `Correct: line references letter(s) ${letters} beyond the ${ctx.choices.length} choice(s) found; dropped.`,
+                        message: `Correct: line references letter(s) ${outLetters} beyond the ${ctx.choices.length} choice(s) found; dropped.`,
+                    });
+                } else if (letters.length === 0 && payload) {
+                    ctx.out.warnings.push({
+                        problemIndex: ctx.problemCount,
+                        code: 'correct_unparseable',
+                        severity: 'warn',
+                        source: 'parser',
+                        message: `Correct: line has no recognizable A-Z letter (got ${JSON.stringify(payload)}); ignored.`,
                     });
                 }
-                ctx.correctIndices = parsed.filter(idx => idx >= 0 && idx < ctx.choices.length);
-            } else if (rawLetters) {
-                ctx.out.warnings.push({
-                    problemIndex: ctx.problemCount,
-                    code: 'correct_unparseable',
-                    severity: 'warn',
-                    source: 'parser',
-                    message: `Correct: line has no recognizable A-Z letter (got ${JSON.stringify(rawLetters)}); ignored.`,
-                });
+                inRange.forEach(i => correctIndicesSet.add(i));
             }
+
+            ctx.correctIndices = Array.from(correctIndicesSet).sort((a, b) => a - b);
             ctx.inChoices = false;
             ctx.questionEnded = false;
             return true;
