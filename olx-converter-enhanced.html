@@ -1079,7 +1079,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 
                 const selectAllPattern = /\(select all that apply\)$/i;
                 const isQuestion = (line.endsWith('?') || selectAllPattern.test(line)) && !line.toLowerCase().startsWith('explanation');
-                
+
                 if (isQuestion) {
                     if (questionText && choices.length > 0) {
                         problemCount++;
@@ -1095,9 +1095,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         choices = [];
                         correctIndices = [];
                         explanation = '';
+                        questionText = line;
+                    } else if (questionText && choices.length === 0) {
+                        // Append to existing setup text
+                        questionText += '\n' + line;
+                    } else {
+                        questionText = line;
                     }
-                    
-                    questionText = line;
+
                     inChoices = true;
                     continue;
                 }
@@ -1130,7 +1135,26 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
                 
-                if (line.toLowerCase().startsWith('explanation:') || 
+                // Handle "Correct: A" or "Correct Answer: B" lines
+                const strippedLine = line.replace(/<[^>]+>/g, '').trim();
+                const correctMatch = strippedLine.match(/^(?:Correct\s+Answer|Correct|Answer):\s*(.+)/i);
+                if (correctMatch && questionText && choices.length > 0) {
+                    const rawLetters = correctMatch[1].trim();
+                    // Try to extract answer letter(s) - handle formats like "B" or "'Group B'" or quotes
+                    const letterMatches = rawLetters.match(/\b([A-Z])\b/g);
+                    if (letterMatches && letterMatches.length > 0) {
+                        letterMatches.forEach(letter => {
+                            const index = letter.charCodeAt(0) - 'A'.charCodeAt(0);
+                            if (index >= 0 && index < choices.length && !correctIndices.includes(index)) {
+                                correctIndices.push(index);
+                            }
+                        });
+                    }
+                    inChoices = false;
+                    continue;
+                }
+
+                if (line.toLowerCase().startsWith('explanation:') ||
                     line.toLowerCase().startsWith('explain:') ||
                     line.toLowerCase() === 'explanation') {
                     inChoices = false;
@@ -1145,20 +1169,61 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     explanation += (explanation ? ' ' : '') + line;
                     continue;
                 }
-                
+
                 if (questionText && inChoices) {
-                    const isCorrect = line.includes('(correct)') || line.includes('**(correct');
-                    const choiceText = line
+                    // Check if this looks like a valid choice line
+                    // Valid choices start with a letter (A-Z) followed by period and space/text
+                    // OR contain an inline (correct) marker
+                    // Skip lines that start with bullets (•, *, -) or look like explanation text
+                    const startsWithBullet = /^[•\*\-]\s/.test(line);
+                    const startsWithChoicePrefix = /^[A-Z]\.\s+/.test(line);
+                    const hasInlineCorrect = line.includes('(correct)') || line.includes('**(correct');
+
+                    // If line starts with bullet or doesn't look like a choice, skip it unless it has (correct)
+                    if (startsWithBullet || (!startsWithChoicePrefix && !hasInlineCorrect && choices.length >= 2)) {
+                        // This looks like explanation text or bullet points, not a choice
+                        // Start collecting it as explanation
+                        inChoices = false;
+                        explanation += (explanation ? ' ' : '') + line;
+                        continue;
+                    }
+
+                    const isCorrect = hasInlineCorrect;
+                    let choiceText = line
+                        .replace(/^[A-Z]\.\s*/, '')  // Remove choice prefix if present
                         .replace(/\*\*\(correct.*?\)\*\*/i, '')
                         .replace(/\(correct.*?\)/i, '')
                         .replace(/\\$/, '')
                         .trim();
-                    
+
                     if (choiceText) {
                         if (isCorrect) {
                             correctIndices.push(choices.length);
                         }
                         choices.push({ text: choiceText, correct: isCorrect });
+                    }
+                }
+
+                // Accumulate question setup text - lines that don't match any pattern
+                // These are typically setup/context lines that come before the question or choices
+                if (questionText && choices.length === 0) {
+                    // We have a question but no choices yet, this might be additional setup text
+                    // Skip if it looks like it's meant to be something else
+                    const looksLikeSetup = !line.match(/^[A-Z]\.\s/) &&
+                                          !line.toLowerCase().startsWith('correct') &&
+                                          !line.toLowerCase().startsWith('answer') &&
+                                          !line.toLowerCase().startsWith('explanation');
+                    if (looksLikeSetup) {
+                        questionText += '\n' + line;
+                    }
+                } else if (!questionText && !inChoices) {
+                    // No question yet, might be the start of setup text
+                    // Start accumulating if it looks like descriptive text
+                    const looksLikeSetup = line.length > 10 &&
+                                          !line.match(/^[A-Z]\.\s/) &&
+                                          !line.toLowerCase().startsWith('explanation');
+                    if (looksLikeSetup) {
+                        questionText = line;
                     }
                 }
             }
