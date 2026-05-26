@@ -1328,6 +1328,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
         let previewEnabled = true;
         let savedSelection = null;
         let editListenersInitialized = false;
+        let statusTimeout = null;
 
         function escapeXml(str) {
             if (str === null || str === undefined) return '';
@@ -1392,11 +1393,18 @@ Explanation: Sales by category represents distinct groups."></textarea>
                             continue;
                         }
                         if (name === 'href') {
-                            // Whitelist safe schemes. Accept scheme-relative
-                            // and relative URLs too. Everything else (js:,
-                            // data:, blob:, filesystem:, vbscript:, ...) is
-                            // dropped.
+                            // Whitelist safe schemes. Accept same-origin
+                            // relative URLs (/path, #frag) too. Reject
+                            // scheme-relative (//host) - those inherit the
+                            // page's protocol and are a phishing vector that
+                            // bypasses visual scheme inspection. Everything
+                            // else (javascript:, data:, blob:, filesystem:,
+                            // vbscript:, file:, ...) is dropped.
                             const value = attr.value.trim();
+                            if (value.startsWith('//')) {
+                                node.removeAttribute(attr.name);
+                                continue;
+                            }
                             const schemeMatch = value.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
                             const scheme = schemeMatch ? schemeMatch[1].toLowerCase() : null;
                             const isSafe = !scheme ||
@@ -1404,7 +1412,6 @@ Explanation: Sales by category represents distinct groups."></textarea>
                                 scheme === 'https' ||
                                 scheme === 'mailto' ||
                                 scheme === 'tel' ||
-                                value.startsWith('//') ||
                                 value.startsWith('/') ||
                                 value.startsWith('#');
                             if (!isSafe) {
@@ -1426,6 +1433,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
         function escapeHtmlWithFormatting(text) {
             if (!text) return '';
+
+            // Strip Unicode bidi controls (RTL/LTR override, isolate, embed).
+            // These can hide malicious text in the preview while keeping it in
+            // the source, a known spoofing vector.
+            text = text.replace(/[‪-‮⁦-⁩]/g, '');
 
             const tagPlaceholders = {};
             let placeholderIndex = 0;
@@ -1575,6 +1587,11 @@ Explanation: Sales by category represents distinct groups."></textarea>
 
         function escapeXmlWithFormatting(text) {
             if (!text) return '';
+
+            // Strip Unicode bidi controls (RTL/LTR override, isolate, embed).
+            // Mirrors escapeHtmlWithFormatting so the OLX output matches what
+            // the preview shows.
+            text = text.replace(/[‪-‮⁦-⁩]/g, '');
 
             const tagPlaceholders = {};
             let placeholderIndex = 0;
@@ -2006,6 +2023,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 if (hasChoices && p.choices.length < 2) {
                     push(i, 'too_few_choices', 'warn',
                         `Only ${p.choices.length} choice(s) detected - minimum 2 expected.`);
+                }
+                if (hasChoices && p.choices.length > 26) {
+                    push(i, 'too_many_choices', 'warn',
+                        `${p.choices.length} choices found - only A-Z (26) can be referenced by a "Correct:" line; choices beyond Z are unreachable.`);
                 }
                 if (placeholder) {
                     push(i, 'missing_explanation', 'info',
@@ -3800,6 +3821,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
             document.getElementById('input').value = '';
             document.getElementById('output').textContent = 'OLX output will appear here...';
             document.getElementById('status').style.display = 'none';
+            if (statusTimeout) { clearTimeout(statusTimeout); statusTimeout = null; }
             const wp = document.getElementById('warningsPanel');
             if (wp) wp.style.display = 'none';
             currentProblems = [];
@@ -3975,8 +3997,10 @@ Explanation: Sales by category represents distinct groups."></textarea>
             status.className = `status ${type}`;
             status.style.display = 'block';
 
-            setTimeout(() => {
+            if (statusTimeout) clearTimeout(statusTimeout);
+            statusTimeout = setTimeout(() => {
                 status.style.display = 'none';
+                statusTimeout = null;
             }, 4000);
         }
 
