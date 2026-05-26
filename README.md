@@ -42,8 +42,8 @@ v5 is a structural refactor on top of v4.3 with new validation surfaces and
 a real test suite. Every change is covered by regression tests.
 
 ### Architecture
-- **JS extracted from `index.html`** to `src/converter.js` (~2,500 lines). The
-  HTML file shrank from ~3,900 lines to ~1,300.
+- **Single-file app**: `index.html` contains the markup and an inline
+  `<script>` with the full converter logic (~2,700 lines). No build step.
 - **Test suite** under `test/` with 44 regression tests and a 37-file `.docx`
   corpus runner. Runs via `npm test`.
 - **`parseProblems` refactored** from a 627-line monolith into a 16-handler
@@ -386,8 +386,8 @@ problem to fix an issue and the badge refreshes in place.
 
 ### Technology Stack
 - **Frontend only** — no backend, no build step for the app itself.
-- **Pure HTML/CSS/JavaScript** — `index.html` loads `src/converter.js`
-  as a plain script.
+- **Pure HTML/CSS/JavaScript** — `index.html` contains the markup and
+  an inline `<script>` with all converter logic.
 - **Runtime dependencies** (loaded from CDN by the browser):
   - Mammoth.js v1.6.0 — Word document parsing
   - MathJax v3 — LaTeX equation rendering
@@ -420,11 +420,9 @@ problem to fix an issue and the badge refreshes in place.
 
 ```
 Problem-converter-new/
-├── index.html                      # HTML shell; loads src/converter.js
-├── src/
-│   └── converter.js                # Core logic: parser, sanitizer, UI
+├── index.html                      # Markup + inline <script> with all logic
 ├── test/
-│   ├── harness.mjs                 # Loads converter into JSDOM
+│   ├── harness.mjs                 # Loads inline script from index.html into JSDOM
 │   ├── parser.test.mjs             # 42 parser regression tests
 │   ├── assignments.test.mjs        # .docx corpus regression
 │   └── run.mjs                     # Dispatcher (npm test)
@@ -434,9 +432,8 @@ Problem-converter-new/
 └── LICENSE
 ```
 
-The browser still loads a single HTML page; `src/converter.js` is a plain
-`<script>` (no build step). Tests are Node-only and don't affect the
-browser app.
+The browser loads a single HTML file with no build step. Tests are
+Node-only and extract the inline script from `index.html` for evaluation.
 
 ## 🧪 Development & Testing
 
@@ -540,8 +537,8 @@ Contributions are welcome! Recent accomplishments and future areas:
 
 1. Fork the repository.
 2. Create a feature branch (`git checkout -b feature/amazing-feature`).
-3. Make your changes — most logic lives in `src/converter.js`; the UI
-   shell is `index.html`.
+3. Make your changes — everything lives in `index.html` (markup +
+   inline `<script>` for the converter logic).
 4. **Run the test suite before committing:**
    ```bash
    npm install
@@ -604,7 +601,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Version 5.x Series (Current)
 **v5.0.0-alpha** — structural refactor + surfaced warnings
-- Core logic extracted from `index.html` to `src/converter.js`.
+- Core logic factored into a 16-handler state machine inside `index.html`.
 - Node-based test suite under `test/` (48 regressions + docx corpus).
 - `parseProblems` rewritten as a 16-handler state machine with a
   single `finalizeProblem` helper.
