@@ -896,7 +896,7 @@ function handleQuestionLine(ctx, line) {
     // concatenate instead of replacing so the whole question body survives.
     const stillAccumulating = ctx.questionText && ctx.choices.length === 0 && !ctx.pendingAnswer;
     if ((ctx.explanationEnded || stillAccumulating) && ctx.questionText) {
-        ctx.questionText = ctx.questionText + ' ' + line;
+        ctx.questionText = ctx.questionText + '\n' + line;
         ctx.explanationEnded = false;
         ctx.questionEnded = false;
     } else {
@@ -1086,7 +1086,7 @@ function handleSetupFallthrough(ctx, line) {
                           !ctx.questionEnded && line &&
                           !line.startsWith('\\section') && !line.startsWith('\\subsection');
     if (!canAccumulate) return false;
-    ctx.questionText = ctx.questionText ? ctx.questionText + ' ' + line : line;
+    ctx.questionText = ctx.questionText ? ctx.questionText + '\n' + line : line;
     return true;
 }
 
@@ -2542,8 +2542,9 @@ function handleFileUpload(event) {
                                 case 'code':
                                     return `<code>${content}</code>`;
                                 case 'p':
-                                case 'li':
                                     return content + '\n';
+                                case 'li':
+                                    return '• ' + content + '\n';
                                 case 'br':
                                     return '\n';
                                 default:
