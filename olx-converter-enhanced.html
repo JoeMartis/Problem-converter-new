@@ -1,9 +1,27 @@
 <!DOCTYPE html>
+<!--
+    DEPRECATED - kept for historical reference only.
+
+    This file is a baseline / legacy version of the converter. The actively
+    maintained entry point is index.html (v5.x) with src/converter.js. This
+    file does NOT have the following fixes from v5:
+      - contenteditable XSS sanitizer
+      - Mammoth HTML injection guard (DOMParser + sanitizer)
+      - Q-label detection (Q1-A etc.)
+      - Multi-line question body accumulation
+      - preNormalizeEmphasis (Word <strong>...</strong> marker handling)
+      - normalizeLatexChoices (LaTeX-labelled MC blocks)
+      - Greek/Cyrillic letter folding for Correct: markers
+      - escapeXmlWithFormatting attribute escaping
+      - Placeholder collision guard in escape helpers
+
+    Use index.html. This file will be removed in a future release.
+-->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Open edX OLX Problem Converter</title>
+    <title>Open edX OLX Problem Converter (DEPRECATED baseline - use index.html)</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Crimson+Pro:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
@@ -869,6 +887,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
         }
         
         function cleanText(text) {
+            if (!text) return '';
             return text
                 .replace(/\*\*/g, '')
                 .replace(/\[/g, '')
@@ -876,6 +895,19 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 .replace(/\{\.underline\}/g, '')
                 .replace(/\{\.mark\}/g, '')
                 .trim();
+        }
+
+        function makeSafeFilename(name) {
+            if (!name) return 'library';
+            const trimmed = String(name).trim().replace(/\s+/g, '_');
+            let safe;
+            try {
+                safe = trimmed.replace(/[^\p{L}\p{N}_-]/gu, '_');
+            } catch (e) {
+                safe = trimmed.replace(/[^a-zA-Z0-9_-]/g, '_');
+            }
+            safe = safe.replace(/^\.+/, '_').slice(0, 100);
+            return safe || 'library';
         }
         
         function parseProblems(text) {
@@ -1107,11 +1139,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     continue;
                 }
                 
-                const answerMatch = line.match(/^Answer:\s*(.+?)(?:Explanation:\s*(.+))?$/i);
+                let answerMatch = line.match(/^Answer:\s*(.+?)\s+Explanation:\s+(.+)$/i);
+                if (!answerMatch) {
+                    answerMatch = line.match(/^Answer:\s*(.+)$/i);
+                }
                 if (answerMatch && questionText && choices.length === 0) {
                     const answerValue = answerMatch[1].trim();
                     const inlineExplanation = answerMatch[2] ? answerMatch[2].trim() : '';
-                    const isNumerical = /^-?\d+\.?\d*$/.test(answerValue) || /^-?\d*\.?\d+$/.test(answerValue);
+                    const isNumerical = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(answerValue);
                     
                     problemCount++;
                     const displayName = currentLabel || displayNameLabel || `Problem ${problemCount}`;
@@ -1158,7 +1193,13 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     line.toLowerCase().startsWith('explain:') ||
                     line.toLowerCase() === 'explanation') {
                     inChoices = false;
-                    explanation = line.replace(/^explanation:\s*/i, '').replace(/^explain:\s*/i, '');
+                    let stripped = line;
+                    let prev;
+                    do {
+                        prev = stripped;
+                        stripped = stripped.replace(/^(explanation|explain):\s*/i, '');
+                    } while (stripped !== prev);
+                    explanation = stripped;
                     if (!explanation || explanation.toLowerCase() === 'explanation') {
                         explanation = '';
                     }
@@ -1387,7 +1428,16 @@ Explanation: Sales by category represents distinct groups."></textarea>
             const container = document.getElementById('previewContainer');
             const countBadge = document.getElementById('previewCount');
             const nav = document.getElementById('previewNav');
-            
+
+            // Clamp currentPreviewIndex in case problems shrank between renders
+            if (problems.length === 0) {
+                currentPreviewIndex = 0;
+            } else if (currentPreviewIndex >= problems.length) {
+                currentPreviewIndex = problems.length - 1;
+            } else if (currentPreviewIndex < 0) {
+                currentPreviewIndex = 0;
+            }
+
             countBadge.textContent = `${problems.length} Problem${problems.length !== 1 ? 's' : ''}`;
             
             if (problems.length === 0) {
@@ -1564,42 +1614,77 @@ Explanation: Sales by category represents distinct groups."></textarea>
         function copyOutput() {
             const output = document.getElementById('output');
             const text = output.textContent;
-            
+
             if (!text || text === 'OLX output will appear here...') {
                 showStatus('No output to copy', 'error');
                 return;
             }
-            
-            navigator.clipboard.writeText(text).then(() => {
-                showStatus('Copied to clipboard!', 'success');
-            }).catch(err => {
-                showStatus('Failed to copy', 'error');
-            });
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showStatus('Copied to clipboard!', 'success');
+                }).catch(() => copyFallback(text));
+            } else {
+                copyFallback(text);
+            }
+        }
+
+        function copyFallback(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            document.body.removeChild(ta);
+            showStatus(ok ? 'Copied to clipboard!' : 'Failed to copy - copy manually', ok ? 'success' : 'error');
         }
         
+        let downloadInProgress = false;
+
         function downloadOutput() {
+            if (downloadInProgress) return;
             const output = document.getElementById('output');
             const text = output.textContent;
-            
+
             if (!text || text === 'OLX output will appear here...') {
                 showStatus('No output to download', 'error');
                 return;
             }
-            
-            const blob = new Blob([text], { type: 'text/xml' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'problems.xml';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            showStatus('Downloaded problems.xml', 'success');
+
+            downloadInProgress = true;
+            let url;
+            try {
+                const blob = new Blob([text], { type: 'text/xml' });
+                url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'problems.xml';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                showStatus('Downloaded problems.xml', 'success');
+            } catch (err) {
+                showStatus('Error creating download: ' + err.message, 'error');
+                console.error(err);
+            } finally {
+                if (url) URL.revokeObjectURL(url);
+                setTimeout(() => { downloadInProgress = false; }, 500);
+            }
         }
         
         function generateUUID() {
+            if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+                return crypto.randomUUID().replace(/-/g, '');
+            }
+            if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+                const bytes = new Uint8Array(16);
+                crypto.getRandomValues(bytes);
+                return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+            }
             return 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'.replace(/x/g, function() {
                 return Math.floor(Math.random() * 16).toString(16);
             });
@@ -1656,12 +1741,17 @@ Explanation: Sales by category represents distinct groups."></textarea>
             return xml;
         }
         
+        let libraryDownloadInProgress = false;
+
         async function downloadLibrary() {
+            if (libraryDownloadInProgress) return;
             if (currentProblems.length === 0) {
                 showStatus('No problems to export. Convert problems first.', 'error');
                 return;
             }
-            
+
+            libraryDownloadInProgress = true;
+            let url;
             try {
                 const input = document.getElementById('input').value;
                 const result = parseProblems(input);
@@ -1688,7 +1778,7 @@ Explanation: Sales by category represents distinct groups."></textarea>
                 };
                 
                 const zip = new JSZip();
-                const safeLibraryId = result.libraryId.replace(/[^a-zA-Z0-9_-]/g, '_');
+                const safeLibraryId = makeSafeFilename(result.libraryId);
                 const library = zip.folder(safeLibraryId);
                 const problemFolder = library.folder('problem');
                 const policiesFolder = library.folder('policies');
@@ -1706,19 +1796,21 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     compressionOptions: { level: 9 }
                 });
                 
-                const url = URL.createObjectURL(content);
+                url = URL.createObjectURL(content);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `${safeLibraryId}.zip`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
+
                 showStatus(`Downloaded ${safeLibraryId}.zip with ${currentProblems.length} problems`, 'success');
             } catch (error) {
                 showStatus(`Error creating library: ${error.message}`, 'error');
                 console.error(error);
+            } finally {
+                if (url) URL.revokeObjectURL(url);
+                setTimeout(() => { libraryDownloadInProgress = false; }, 500);
             }
         }
         

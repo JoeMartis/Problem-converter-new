@@ -2,7 +2,8 @@
 
 A powerful, production-ready browser-based tool for converting educational problem sets into Open edX OLX (Open Learning XML) format. This application streamlines the process of creating **Open edX Library v1** content for the Open edX platform, supporting multiple question types, rich text formatting, and advanced mathematical equation rendering.
 
-**Version 4.3** | **50+ Bug Fixes & Enhancements**
+**Version 5.0.0-alpha** | refactored core, test suite, surfaced warnings
+_(stable previous release: [v4.3](https://github.com/JoeMartis/problem-converter-new/tree/v4.3) — revert with `git reset --hard fbfe764`)_
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -28,12 +29,94 @@ A powerful, production-ready browser-based tool for converting educational probl
 - ✏️ **In-Place Editing** - Edit questions, choices, and explanations directly
 - 📊 **Statistics Dashboard** - Track problem counts and warnings
 - 📦 **Batch Processing** - Convert multiple problems at once
-- 💾 **Library Export** - Download as organized ZIP with Open edX Library v1 structure
+- 💾 **Library Export** - Download as `.tar.gz` with Open edX Library v1 structure (directly importable into edX Studio)
 - 📋 **Copy to Clipboard** - Quick OLX export
 - 🎨 **Modern UI** - Clean, responsive design
 - 🎯 **Smart Attempts Policy** - Automatic retry configuration based on problem type
 - 🧮 **Automatic Math Detection** - Intelligent LaTeX wrapping for mathematical expressions
 - 📝 **Flexible Input Formats** - Support for multiple answer format styles
+
+## 🚀 What's new in v5.0.0-alpha
+
+v5 is a structural refactor on top of v4.3 with new validation surfaces and
+a real test suite. Every change is covered by regression tests.
+
+### Architecture
+- **JS extracted from `index.html`** to `src/converter.js` (~2,500 lines). The
+  HTML file shrank from ~3,900 lines to ~1,300.
+- **Test suite** under `test/` with 44 regression tests and a 37-file `.docx`
+  corpus runner. Runs via `npm test`.
+- **`parseProblems` refactored** from a 627-line monolith into a 16-handler
+  state machine + a single `finalizeProblem()` helper. Most of the flag-
+  interaction bugs we kept finding were duplication-driven; that class is
+  now gone.
+
+### Parsing improvements
+- **Q-style labels** (`Q1-A`, `Q2-B (Existing)`) recognized as problem
+  titles, including hyphen, en-dash, em-dash, and parenthetical notes.
+- **Multi-line question bodies** — setup text that precedes the `?` line
+  is now preserved instead of being overwritten.
+- **Greek / Cyrillic letter folding** — `Correct: Α` (Greek alpha) and
+  choice prefixes like `Α.` / `Β.` are recognized as Latin A / B.
+- **Word `<strong>` markers** — `<strong>Correct: B</strong>`,
+  `<strong>Explanation:</strong>`, and cross-line tag pairs are
+  normalized before parsing.
+- **LaTeX-labelled choices** — `\begin{align*}…\mathbf{(A)}…\mathbf{(B)}…
+  \end{align*}` and `$$\mathbf{(A)}…$$` blocks become per-choice lines.
+- **Math expressions no longer mis-split** — `x=0. Which…` stays on one
+  line; the `\d+.` splitter only fires after whitespace.
+- **Numerical answers** handle `.5`, `+5`, and scientific notation.
+- **Answer: / Explanation:** same-line split only fires on capital-E
+  `Explanation:` so lowercase in answer text stays intact.
+- **Section headers** like `Q1 – Objective` are skipped instead of being
+  absorbed into the previous explanation.
+
+### Warnings surfaced in the UI
+Warnings used to be `console.warn` output, invisible unless DevTools was
+open. They now appear in a collapsible panel below the status bar and as
+a `⚠ N` badge on each affected problem in the preview.
+
+Warning categories:
+- `correct_out_of_range` — `Correct:` letter references a choice that
+  doesn't exist.
+- `correct_unparseable` — `Correct:` line has no recognizable A-Z letter.
+- `empty_question`, `no_content`, `no_correct_marker`, `too_few_choices`,
+  `empty_choice`, `missing_explanation`, `choice_too_long`.
+
+Warnings re-compute after every preview edit, so fixing an issue in the
+UI clears the badge live.
+
+### Security & reliability
+- **Contenteditable XSS** — edits are sanitized via an allowlist-based
+  sanitizer. Script tags, iframes, and `javascript:` / `data:` / `blob:`
+  URLs are stripped.
+- **Mammoth .docx upload** — parsed via `DOMParser` + sanitizer instead
+  of raw `innerHTML` assignment.
+- **Placeholder collision** — escape helpers use a per-call random
+  seed, so user text containing literal `__LATEX_0__` no longer gets
+  substituted.
+- **href scheme whitelist** — only `http`, `https`, `mailto`, `tel`,
+  anchor, and relative URLs are accepted in sanitized HTML.
+- **Attribute escaping** — anchor and `<pre><code>` attributes route
+  through `escapeXml`.
+- **Cross-field edit debounce fix** — rapid edits across different
+  fields no longer drop prior keystrokes.
+- **Download debounce + URL cleanup** for both OLX and library archive.
+- **Library archive is `.tar.gz`** (POSIX tar + gzip) so edX Studio's
+  "Import Library" accepts the file directly. Tar is generated in
+  ~100 lines of JS and gzipped via the browser's native
+  `CompressionStream`; the JSZip CDN dependency was dropped.
+- **Crypto UUIDs** — prefer `crypto.randomUUID` / `getRandomValues` over
+  `Math.random`.
+- **Unicode filenames** — `makeSafeFilename` preserves non-ASCII letters
+  while still neutralizing path-traversal.
+- **Library metadata snapshot** — download-library uses the metadata
+  from the actual conversion, not a fresh re-parse of possibly-edited
+  input.
+
+### Deprecated
+- `olx-converter-enhanced.html` — now annotated as legacy; missing the
+  v5 sanitizer, warnings UI, and parser improvements.
 
 ## 🚀 Recent Improvements (v2.0 → v4.3)
 
@@ -257,7 +340,7 @@ $$ \int_0^1 x^2 dx = \frac{1}{3} $$
 3. **Export**
    - **Copy OLX** - Copy XML to clipboard for manual use
    - **Download** - Get plain OLX file
-   - **Download Library** - Get complete Open edX Library v1 structure as ZIP
+   - **Download Library** - Get the complete Open edX Library v1 structure as a `.tar.gz` archive (import directly into edX Studio via **Tools → Import**)
 
 ## 📊 Statistics & Validation
 
@@ -265,20 +348,56 @@ The built-in statistics panel shows:
 - Total problem count
 - Breakdown by type (MC, Multi-select, Numerical, Text)
 - Average choices per problem
-- ⚠️ **Warnings** for:
-  - Problems with no correct answer marked
-  - Problems with insufficient choices
+- ⚠️ **Warning count** — how many issues the parser and validator
+  flagged on the current conversion.
+
+### Warnings panel
+
+Below the status bar, a collapsible yellow panel lists every warning with
+the problem it came from. Each warning has:
+
+- a **source** (`parser` — from the raw input; `validator` — from a
+  shape check against the parsed problem),
+- a **severity** (`warn` or `info`),
+- a **code** (e.g. `no_correct_marker`, `correct_out_of_range`,
+  `empty_choice`),
+- a **message** describing the issue.
+
+Individual problems in the preview get a `⚠ N` badge next to their
+title. Hovering the badge shows the full messages as a tooltip. Edit a
+problem to fix an issue and the badge refreshes in place.
+
+### Programmatic access
+
+`parseProblems(text)` returns:
+
+```js
+{
+  problems:          [ /* parsed problem objects */ ],
+  displayNameLabel:  'Problem',
+  libraryOrg:        '...',
+  libraryName:       '...',
+  libraryId:         '...',
+  warnings:          [ /* { problemIndex, code, severity, source, message } */ ]
+}
+```
 
 ## 🔧 Technical Details
 
 ### Technology Stack
-- **Frontend Only** - No backend required
-- **Pure HTML/CSS/JavaScript** - No build process needed
-- **Dependencies:**
-  - JSZip v3.10.1 - ZIP file generation
-  - Mammoth.js v1.6.0 - Word document parsing
-  - MathJax v3 - LaTeX equation rendering
-  - Google Fonts - Typography
+- **Frontend only** — no backend, no build step for the app itself.
+- **Pure HTML/CSS/JavaScript** — `index.html` loads `src/converter.js`
+  as a plain script.
+- **Runtime dependencies** (loaded from CDN by the browser):
+  - Mammoth.js v1.6.0 — Word document parsing
+  - MathJax v3 — LaTeX equation rendering
+  - Google Fonts — Typography
+  - *No archive library*: tar is written inline; gzip uses the
+    browser's native `CompressionStream` API.
+- **Dev dependencies** (for `npm test` only; not shipped to users):
+  - `jsdom` — DOM shim for tests
+  - `mammoth` — same library as the browser uses, for `.docx` corpus
+    regression
 
 ### Browser Support
 - ✅ Chrome/Edge 90+
@@ -301,12 +420,51 @@ The built-in statistics panel shows:
 
 ```
 Problem-converter-new/
-├── index.html          # Complete single-page application
-├── README.md          # This file
-└── LICENSE            # MIT License
+├── index.html                      # HTML shell; loads src/converter.js
+├── src/
+│   └── converter.js                # Core logic: parser, sanitizer, UI
+├── test/
+│   ├── harness.mjs                 # Loads converter into JSDOM
+│   ├── parser.test.mjs             # 42 parser regression tests
+│   ├── assignments.test.mjs        # .docx corpus regression
+│   └── run.mjs                     # Dispatcher (npm test)
+├── olx-converter-enhanced.html     # Deprecated baseline (v4 era)
+├── package.json                    # Dev deps for the test suite
+├── README.md
+└── LICENSE
 ```
 
-The entire application is contained in a single, self-contained HTML file for maximum portability.
+The browser still loads a single HTML page; `src/converter.js` is a plain
+`<script>` (no build step). Tests are Node-only and don't affect the
+browser app.
+
+## 🧪 Development & Testing
+
+```bash
+# Install dev dependencies (mammoth + jsdom) for the test suite.
+npm install
+
+# Run everything (unit tests + assignments corpus if ASSIGNMENTS_DIR is set).
+npm test
+
+# Run just the unit tests.
+npm run test:unit
+
+# Run against a directory of .docx files.
+ASSIGNMENTS_DIR=/path/to/unzipped/assignments npm run test:assignments
+```
+
+The assignments suite is skipped silently when `ASSIGNMENTS_DIR` doesn't
+exist, so `npm test` works on a fresh checkout without needing a corpus.
+
+**Reverting the v5 refactor.** The last v4 commit is tagged `v4.3`
+(commit `fbfe764`). To return to the pre-refactor state:
+
+```bash
+git reset --hard fbfe764
+# or, once the tag is pushed:
+git reset --hard v4.3
+```
 
 ## 🎨 Customization
 
@@ -380,28 +538,50 @@ Contributions are welcome! Recent accomplishments and future areas:
 
 ### Development Workflow
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes to `index.html`
-4. **Test thoroughly:**
-   - Test across browsers (Chrome, Firefox, Safari)
-   - Test with sample problems
-   - Test edge cases (blank lines, special characters, LaTeX)
-   - Validate OLX output in Open edX
-5. Commit with descriptive messages (`git commit -m 'Add amazing feature'`)
-6. Push to your branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request with detailed description
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/amazing-feature`).
+3. Make your changes — most logic lives in `src/converter.js`; the UI
+   shell is `index.html`.
+4. **Run the test suite before committing:**
+   ```bash
+   npm install
+   npm test
+   ```
+   Add a regression test under `test/parser.test.mjs` for any new bug
+   you fix.
+5. Test in the browser too — open `index.html` directly, convert the
+   bundled sample, try a `.docx` upload, verify the warnings panel
+   behaves.
+6. Commit with descriptive messages.
+7. Push and open a Pull Request.
 
 ### Testing Checklist
-- [ ] Basic problem parsing (MC, Multi-select, Numerical, Text)
-- [ ] LaTeX equations (inline and display mode)
-- [ ] Special characters and formatting
-- [ ] Blank lines between choices
-- [ ] Multiple answer formats
-- [ ] Explanation markers
-- [ ] Library export (ZIP structure)
-- [ ] File upload (.txt and .docx)
-- [ ] Preview rendering with MathJax
+
+Automated (via `npm test`):
+- [x] Basic problem parsing (MC, Multi-select, Numerical, Text)
+- [x] Numerical regex edge cases (`.5`, `+5`, sci notation)
+- [x] `Answer:` / `Explanation:` split
+- [x] Q-label titles (`Q1-A`, `Q2-B`)
+- [x] Multi-line question accumulation
+- [x] Math-period preservation (`x=0. Which…`)
+- [x] Greek/Cyrillic folding in `Correct:` and choice prefixes
+- [x] Section-header skip
+- [x] Emphasis-tag normalization (`<strong>Correct: B</strong>` etc.)
+- [x] LaTeX `\mathbf{(A)}` choice-block splitting
+- [x] Sanitizer allowlist + href scheme whitelist
+- [x] XML attribute escaping (anchor + `<pre><code>`)
+- [x] Placeholder-collision guard in escape helpers
+- [x] Default problem titles (`Problem 1`, `Problem 2`, …)
+- [x] Warnings emitted with `source` tag; empty choice flagged
+- [x] `handleEdit` cross-field commit (no lost keystrokes)
+- [x] 37-file `.docx` corpus stays within issue budget
+
+Manual (browser):
+- [ ] LaTeX equation editor — live preview and insertion
+- [ ] Preview editing — formatting toolbar, warnings badge refresh
+- [ ] File upload — `.txt` and `.docx`
+- [ ] MathJax re-render after edits
+- [ ] Library export `.tar.gz` imports into edX Studio
 - [ ] OLX validation on Open edX platform
 
 ## 📄 License
@@ -411,7 +591,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Open edX community for OLX specifications
-- JSZip and Mammoth.js teams for excellent libraries
+- Mammoth.js team for the Word document library
 - All contributors and users
 
 ## 📞 Support
@@ -422,7 +602,27 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📋 Detailed Changelog
 
-### Version 4.x Series (Current)
+### Version 5.x Series (Current)
+**v5.0.0-alpha** — structural refactor + surfaced warnings
+- Core logic extracted from `index.html` to `src/converter.js`.
+- Node-based test suite under `test/` (48 regressions + docx corpus).
+- `parseProblems` rewritten as a 16-handler state machine with a
+  single `finalizeProblem` helper.
+- Warnings panel + per-problem badges surface parser/validator issues
+  that were previously only in `console.warn`.
+- Parser/validator warnings tagged with `source` so the edit-refresh
+  flow can preserve the parser ones.
+- Emphasis-tag normalization, LaTeX `\mathbf{(A)}` choice splitting,
+  Q-label detection, Greek/Cyrillic folding, multi-line question
+  accumulation, math-period preservation, numerical-regex fix,
+  placeholder-collision guard, href scheme whitelist, attribute
+  escaping, clipboard fallback, download debounce, crypto UUIDs,
+  Unicode-preserving filename, library metadata snapshot.
+- **Library download is now `.tar.gz`** (POSIX tar + gzip via native
+  `CompressionStream`) so edX Studio's Import Library accepts the
+  archive directly. JSZip CDN dependency dropped.
+
+### Version 4.x Series
 **v4.3** - GitHub Pages cache refresh
 **v4.2** - Fixed Answer format explanation handling
 **v4.1** - Added markdown-style code snippet support (triple backticks)
