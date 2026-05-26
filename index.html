@@ -1821,15 +1821,15 @@ Explanation: Sales by category represents distinct groups."></textarea>
                         questionEnded = false;
                     }
 
-                    // Append to existing questionText if we've been accumulating setup text after "End Explanation"
-                    if (explanationEnded && questionText) {
-                        questionText = questionText + ' ' + line;
-                        // Reset flags now that we've started the question proper
-                        explanationEnded = false;
-                        questionEnded = false;
+                    // Append to existing questionText if we've been accumulating setup text
+                    if (questionText && questionText.trim()) {
+                        questionText = questionText + '\n' + line;
                     } else {
                         questionText = line;
                     }
+                    // Reset flags now that we've started seeing the question proper
+                    explanationEnded = false;
+                    questionEnded = false;
                     inChoices = true;
                     continue;
                 }
@@ -2072,14 +2072,14 @@ Explanation: Sales by category represents distinct groups."></textarea>
                     }
                 }
 
-                // After "End Explanation" or after detecting question setup, accumulate setup text for the next question
-                // This catches lines that fall through all other patterns
-                // Stop accumulating if we've seen "endquestion" marker
-                if ((explanationEnded || (questionText && !inChoices && choices.length === 0)) && !questionEnded && line) {
+                // After "End Explanation" or before choices start, accumulate setup text for the next question
+                // This catches lines that fall through all other patterns (setup text, context, etc.)
+                // Stop accumulating if we've seen "endquestion" marker or already have choices
+                if ((explanationEnded || !inChoices) && !questionEnded && choices.length === 0 && line) {
                     // Skip LaTeX section markers and other metadata
                     if (!line.startsWith('\\section') && !line.startsWith('\\subsection')) {
                         // Build up the next question text from all lines until choices start or "endquestion" is seen
-                        questionText = questionText ? questionText + ' ' + line : line;
+                        questionText = questionText ? questionText + '\n' + line : line;
                     }
                 }
             }
@@ -3302,8 +3302,9 @@ Explanation: Basic arithmetic shows that two plus two equals four.`;
                                         case 'code':
                                             return `<code>${content}</code>`;
                                         case 'p':
-                                        case 'li':
                                             return content + '\n';
+                                        case 'li':
+                                            return '• ' + content + '\n';
                                         case 'br':
                                             return '\n';
                                         default:
