@@ -948,9 +948,10 @@ function handleAnswerLine(ctx, line) {
 }
 
 function handleCorrectLine(ctx, line) {
-    // "Correct: A, C" or "Answer: B" used as a correct-answer marker after
-    // a choice block.
-    const m = line.match(/^(Correct|Answer):\s*(.+)/i);
+    // "Correct: A, C" or "Answer: B" or "Correct Answer: B" used as a correct-answer marker
+    // after a choice block. The "Correct Answer" form must be matched before "Correct" alone,
+    // otherwise the regex would capture "Answer: B" as the letters portion.
+    const m = line.match(/^(Correct\s+Answer|Correct|Answer):\s*(.+)/i);
     if (!m) return false;
     if (!ctx.questionText || ctx.choices.length === 0) return false;
 
@@ -1047,7 +1048,7 @@ function handleChoiceLine(ctx, line) {
     const choicePattern = /^[A-ZΑ-ΩА-Я]\.\s*/iu;
     const lower = line.toLowerCase();
     const isStopMarker =
-        line.match(/^Correct:\s*/i) ||
+        line.match(/^(Correct\s+Answer|Correct|Answer):\s*/i) ||
         lower.startsWith('explanation:') ||
         lower.startsWith('explain:') ||
         lower === 'explanation';
