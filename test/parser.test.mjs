@@ -273,6 +273,66 @@ t.case('sanitizer href whitelist allows http/https/mailto, rejects javascript', 
     assert(!api.sanitizeHtml('<a href="  JaVaScRiPt:alert(1)">x</a>').includes('script'));
 });
 
+t.case('sanitizer rejects scheme-relative URLs (//host phishing vector)', () => {
+    // //host inherits the page protocol and bypasses visual scheme inspection.
+    assert(!api.sanitizeHtml('<a href="//evil.com/x">x</a>').includes('evil.com'));
+    assert(!api.sanitizeHtml('<a href="  //evil.com">x</a>').includes('evil.com'));
+    // Same-origin relative and fragment URLs remain allowed.
+    assert(api.sanitizeHtml('<a href="/local">x</a>').includes('/local'));
+    assert(api.sanitizeHtml('<a href="#frag">x</a>').includes('#frag'));
+});
+
+t.case('sanitizer rejects file:, vbscript:, filesystem: schemes', () => {
+    assert(!api.sanitizeHtml('<a href="file:///etc/passwd">x</a>').includes('file:'));
+    assert(!api.sanitizeHtml('<a href="vbscript:msgbox(1)">x</a>').includes('vbscript'));
+    assert(!api.sanitizeHtml('<a href="filesystem:http://x/y">x</a>').includes('filesystem'));
+});
+
+t.case('escapeXmlWithFormatting strips bidi override characters', () => {
+    // U+202E RTL OVERRIDE, U+2066 LTR ISOLATE - visually hide injected text.
+    const input = 'Safe ‮NEGNAD‬ text';
+    const out = api.escapeXmlWithFormatting(input);
+    assert(!out.includes('‮'), `RTL override leaked: ${JSON.stringify(out)}`);
+    assert(!out.includes('‬'), `pop dir formatting leaked: ${JSON.stringify(out)}`);
+    assert(out.includes('Safe') && out.includes('text'),
+        `lost surrounding text: ${out}`);
+});
+
+t.case('escapeHtmlWithFormatting strips bidi override characters', () => {
+    const input = 'Safe ‮NEGNAD‬ ⁦hidden⁩ text';
+    const out = api.escapeHtmlWithFormatting(input);
+    assert(!/[‪-‮⁦-⁩]/.test(out),
+        `bidi controls leaked: ${JSON.stringify(out)}`);
+});
+
+t.case('warns when more than 26 choices found (A-Z exhausted)', () => {
+    let input = 'Pick one?\n';
+    for (let i = 0; i < 28; i++) {
+        input += String.fromCharCode(65 + (i % 26)) + '. choice' + i + '\n';
+    }
+    input += 'Correct: A\nExplanation: e';
+    const r = api.parseProblems(input);
+    assert(r.problems[0].choices.length > 26,
+        `expected >26 choices, got ${r.problems[0].choices.length}`);
+    assert(
+        r.warnings.some(w => w.code === 'too_many_choices'),
+        `expected too_many_choices warning; got ${JSON.stringify(r.warnings.map(w => w.code))}`
+    );
+});
+
+t.case('27-or-fewer choices does not trigger too_many_choices', () => {
+    let input = 'Pick one?\n';
+    for (let i = 0; i < 26; i++) {
+        input += String.fromCharCode(65 + i) + '. choice' + i + '\n';
+    }
+    input += 'Correct: A\nExplanation: e';
+    const r = api.parseProblems(input);
+    assert(
+        !r.warnings.some(w => w.code === 'too_many_choices'),
+        `unexpected too_many_choices: ${JSON.stringify(r.warnings)}`
+    );
+});
+
 t.case('placeholder collision is prevented (literal __LATEX_0__ in text)', () => {
     // User text with bait + real LaTeX block.
     const out = api.escapeXmlWithFormatting(
