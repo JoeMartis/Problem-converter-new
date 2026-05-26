@@ -126,6 +126,27 @@ t.case('math expression "x=0. Which" is not split', () => {
     assert(r.problems[0].question.startsWith('Suppose x=0'));
 });
 
+t.case('setup text before first question is preserved (no Q-label)', () => {
+    // No Q-label header, no "Label:", no library metadata - just setup text
+    // that precedes the question. Previously parseHeaderMetadata silently
+    // skipped these lines until the "?" was found.
+    const r = api.parseProblems(
+        'Assume the data are as follows:\n' +
+        'Group A: 100\nGroup B: 200\n' +
+        'Which group has more?\nA. A\nB. B\nCorrect: B\nExplanation: e.'
+    );
+    assertEqual(r.problems.length, 1);
+    assert(
+        r.problems[0].question.includes('Assume the data are as follows'),
+        `lost setup: ${JSON.stringify(r.problems[0].question)}`
+    );
+    assert(
+        r.problems[0].question.includes('Group A: 100'),
+        `lost setup row: ${JSON.stringify(r.problems[0].question)}`
+    );
+    assert(r.problems[0].question.includes('Which group has more?'));
+});
+
 // --- Greek/Cyrillic folding ---------------------------------------------
 
 t.case('Correct: with Greek Α folds to Latin A', () => {
